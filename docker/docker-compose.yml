@@ -1,0 +1,29 @@
+# PhishNet AI - DSDL stack for Foundation-Sec-8B
+#
+# NOTE: Splunk Enterprise runs natively on this host (not in Docker), so this
+# compose file ONLY brings up the DSDL container that hosts Foundation-Sec-8B.
+# Wired on Week 1 Day 4. The exact image name is confirmed against Splunk's
+# published DSDL container repo at that time.
+#
+# Usage (Week 1 Day 4+):
+#   docker compose -f docker/docker-compose.yml up -d
+#   docker compose -f docker/docker-compose.yml down
+
+services:
+  dsdl-foundation-sec:
+    # Placeholder image — verify exact tag from splunk/splunk-mltk-container-docker
+    image: splunk/mltk-container-foundation-sec:latest
+    container_name: phishnet-dsdl
+    ports:
+      - "5000:5000"   # inference endpoint (agent classifier == "dsdl")
+      - "8888:8888"   # Jupyter notebook (testing)
+    volumes:
+      - dsdl-models:/srv/notebooks
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+    restart: unless-stopped
+
+volumes:
+  dsdl-models:

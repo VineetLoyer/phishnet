@@ -1,0 +1,53 @@
+# --- Secrets / licenses (NEVER commit) ---
+*.license
+*Splunk*.lic
+*.lic
+.env
+.env.*
+secrets.json
+**/local/          # Splunk local/ dirs hold instance-specific + secret config
+**/*.pem
+**/*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+
+# --- Build / packaging ---
+*.tar.gz
+*.tgz
+dist/
+build/
+
+# --- Demo data (regenerated, not committed) ---
+data/generated/
+scripts/__pycache__/
+
+# --- Splunk app vendored deps (large, reinstallable) ---
+phishnet_ai/bin/phishnet_lib/vendor/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Private research & strategy docs (NOT for public repo) ---
+docs/

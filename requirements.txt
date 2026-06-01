@@ -1,0 +1,16 @@
+# PhishNet AI - development dependencies
+# Pinned for reproducibility. The Splunk modular-input runtime uses Splunk's
+# bundled Python; heavy deps (transformers/torch) run OUTSIDE Splunk via DSDL.
+
+splunk-sdk==2.0.1          # Splunk Python SDK (client + modular input)
+requests==2.32.3           # threat-intel API calls
+python-dateutil==2.9.0     # date parsing
+jinja2==3.1.4              # investigation report HTML templates (Week 2)
+faker==24.14.0            # synthetic data helpers (optional)
+
+# --- Testing ---
+pytest==8.2.0
+
+# --- Fallback classifier only (NOT installed by default; heavy) ---
+# transformers==4.40.0
+# torch==2.3.0

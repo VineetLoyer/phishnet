@@ -1,0 +1,17 @@
+#
+# PhishNet AI - default.meta
+# Default permissions for the app's knowledge objects.
+#
+
+[]
+access = read : [ * ], write : [ admin, power ]
+export = system
+
+[views]
+export = system
+
+[savedsearches]
+export = system
+
+[transforms]
+export = system

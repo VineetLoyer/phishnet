@@ -47,6 +47,15 @@ def parse_args(argv):
                         help="recommend = analyst confirms; auto = auto-close high-confidence FPs.")
     parser.add_argument("--limit", type=int, default=0,
                         help="Max alerts to process this run (0 = no limit).")
+    # --- I/O backend selection ---
+    parser.add_argument("--backend", default=None,
+                        choices=["file", "sdk", "mcp"],
+                        help="I/O backend. Default: auto (sdk if creds present, else file).")
+    parser.add_argument("--splunk-host", default="localhost")
+    parser.add_argument("--splunk-port", type=int, default=8089)
+    parser.add_argument("--splunk-username", default=None)
+    parser.add_argument("--splunk-password", default=None)
+    parser.add_argument("--splunk-token", default=None)
     return parser.parse_args(argv)
 
 
@@ -56,6 +65,12 @@ def main(argv=None):
         classifier=args.classifier,
         mode=args.mode,
         limit=args.limit,
+        backend=args.backend,
+        splunk_host=args.splunk_host,
+        splunk_port=args.splunk_port,
+        splunk_username=args.splunk_username,
+        splunk_password=args.splunk_password,
+        splunk_token=args.splunk_token,
     )
 
     if args.once:

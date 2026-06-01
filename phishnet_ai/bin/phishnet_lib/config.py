@@ -23,6 +23,10 @@ class AgentConfig:
     classifier: str = "mock"         # mock | dsdl | huggingface
     limit: int = 0                   # 0 = no limit
 
+    # I/O backend: None (auto) | "file" | "sdk" | "mcp"
+    backend: Optional[str] = None
+    use_mcp: bool = False
+
     # Confidence threshold above which a false-positive may auto-close (auto mode only)
     auto_close_confidence: float = 0.90
 
@@ -30,6 +34,8 @@ class AgentConfig:
     splunk_host: str = "localhost"
     splunk_port: int = 8089
     splunk_token: Optional[str] = None
+    splunk_username: Optional[str] = None
+    splunk_password: Optional[str] = None
 
     # DSDL endpoint for Foundation-Sec-8B (classifier == "dsdl")
     dsdl_url: str = "http://localhost:5000"

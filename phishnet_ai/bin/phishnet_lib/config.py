@@ -37,8 +37,12 @@ class AgentConfig:
     splunk_username: Optional[str] = None
     splunk_password: Optional[str] = None
 
-    # DSDL endpoint for Foundation-Sec-8B (classifier == "dsdl")
-    dsdl_url: str = "http://localhost:5000"
+    # DSDL / local LLM endpoint for Foundation-Sec-8B
+    # provider: None (auto-detect from url) | "ollama" | "dsdl"
+    llm_provider: Optional[str] = None
+    dsdl_url: str = "http://localhost:11434"      # Ollama default; DSDL uses :5000
+    # Official Foundation-Sec-8B GGUF (Cisco Foundation AI). Override via --llm-model.
+    llm_model: str = "hf.co/fdtn-ai/Foundation-Sec-8B-Q8_0-GGUF"
 
     # Threat-intel API keys (loaded from env / Splunk secret store, never hardcoded)
     vt_api_key: Optional[str] = None

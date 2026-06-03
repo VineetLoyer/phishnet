@@ -56,12 +56,19 @@ def parse_args(argv):
     parser.add_argument("--splunk-username", default=None)
     parser.add_argument("--splunk-password", default=None)
     parser.add_argument("--splunk-token", default=None)
+    # --- Foundation-Sec / LLM classifier endpoint ---
+    parser.add_argument("--llm-provider", default=None, choices=["ollama", "dsdl"],
+                        help="LLM endpoint type. Default: auto-detect from --llm-url.")
+    parser.add_argument("--llm-url", default=None,
+                        help="LLM endpoint URL (Ollama :11434 or DSDL :5000).")
+    parser.add_argument("--llm-model", default=None,
+                        help="Model name/tag for the classifier (Ollama tag or DSDL model).")
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv if argv is not None else sys.argv[1:])
-    config = AgentConfig(
+    cfg_kwargs = dict(
         classifier=args.classifier,
         mode=args.mode,
         limit=args.limit,
@@ -72,6 +79,13 @@ def main(argv=None):
         splunk_password=args.splunk_password,
         splunk_token=args.splunk_token,
     )
+    if args.llm_provider:
+        cfg_kwargs["llm_provider"] = args.llm_provider
+    if args.llm_url:
+        cfg_kwargs["dsdl_url"] = args.llm_url
+    if args.llm_model:
+        cfg_kwargs["llm_model"] = args.llm_model
+    config = AgentConfig(**cfg_kwargs)
 
     if args.once:
         summary = run_once(config)

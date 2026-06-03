@@ -64,15 +64,108 @@ class MockClassifier:
 
 
 class DsdlClassifier:
-    """Foundation-Sec-8B via the DSDL container. Wired on Week 1 Day 4."""
+    """Foundation-Sec-8B via an HTTP inference endpoint.
+
+    Works against either:
+      - Ollama  (default, http://localhost:11434) running a Foundation-Sec GGUF
+      - Splunk DSDL container (http://localhost:5000) hosting Foundation-Sec-8B
+
+    The endpoint type is auto-detected from config.dsdl_url, or set explicitly
+    via config.llm_provider ("ollama" | "dsdl"). Both speak HTTP+JSON; only the
+    request/response shape differs, handled below.
+
+    The classifier sends the alert + investigation context and asks the security
+    model for a zero-shot verdict with reasoning. Output is parsed into a Verdict.
+    """
+
+    LABELS = ["phishing", "legitimate", "spam", "targeted_attack"]
 
     def __init__(self, config: AgentConfig):
         self.config = config
+        self.provider = getattr(config, "llm_provider", None) or self._detect_provider()
+
+    def _detect_provider(self) -> str:
+        url = (self.config.dsdl_url or "").lower()
+        if "11434" in url or "ollama" in url:
+            return "ollama"
+        return "dsdl"
+
+    def _build_prompt(self, alert: Alert, investigation: Investigation) -> str:
+        findings = "\n".join(
+            f"- [{s.signal}] {s.name}: {s.finding}" for s in investigation.steps
+        )
+        executed = bool(investigation.blast_radius and investigation.blast_radius.payload_executed)
+        return (
+            "You are a SOC security analyst model. Classify the following email "
+            "security alert into exactly one label: phishing, legitimate, spam, "
+            "or targeted_attack. Use targeted_attack only if a payload executed "
+            "or credentials were compromised.\n\n"
+            f"Sender: {alert.sender}\n"
+            f"Sender domain: {alert.sender_domain}\n"
+            f"Subject: {alert.subject}\n"
+            f"Recipients: {len(alert.recipients)}\n"
+            f"Payload executed on endpoint: {executed}\n\n"
+            f"Investigation findings:\n{findings}\n\n"
+            "Respond in JSON only: "
+            '{"label": "<one label>", "confidence": <0.0-1.0>, "reasoning": "<one sentence>"}'
+        )
 
     def classify(self, alert: Alert, investigation: Investigation) -> Verdict:
-        # TODO(week1-day4): POST alert + investigation context to DSDL endpoint
-        # at self.config.dsdl_url, parse the zero-shot classification response.
-        raise NotImplementedError("DSDL classifier wired on Week 1 Day 4.")
+        import json
+        import requests
+
+        prompt = self._build_prompt(alert, investigation)
+
+        if self.provider == "ollama":
+            base = self.config.dsdl_url or "http://localhost:11434"
+            resp = requests.post(
+                f"{base}/api/generate",
+                json={
+                    "model": self.config.llm_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.0},
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()
+            text = resp.json().get("response", "")
+        else:  # dsdl
+            base = self.config.dsdl_url or "http://localhost:5000"
+            resp = requests.post(
+                f"{base}/predict",
+                json={"prompt": prompt},
+                timeout=120,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            text = payload.get("response") or payload.get("text") or json.dumps(payload)
+
+        return self._parse(text, investigation)
+
+    def _parse(self, text: str, investigation: Investigation) -> Verdict:
+        import json
+        import re
+
+        label, confidence, reasoning = "phishing", 0.5, text.strip()[:300]
+        try:
+            # Extract the first JSON object in the response.
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            data = json.loads(match.group(0)) if match else json.loads(text)
+            label = str(data.get("label", label)).strip().lower()
+            if label not in self.LABELS:
+                label = "phishing"
+            confidence = float(data.get("confidence", confidence))
+            reasoning = str(data.get("reasoning", reasoning))
+        except (ValueError, AttributeError, TypeError):
+            # Model didn't return clean JSON — fall back to keyword heuristics.
+            low = text.lower()
+            for cand in self.LABELS:
+                if cand in low:
+                    label = cand
+                    break
+        return Verdict(label=label, confidence=confidence, reasoning=reasoning)
 
 
 class HuggingFaceClassifier:

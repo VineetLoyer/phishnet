@@ -115,6 +115,9 @@ class DsdlClassifier:
         import requests
 
         prompt = self._build_prompt(alert, investigation)
+        # First call may be slow while the model loads into VRAM/RAM. Use a
+        # generous timeout; keep_alive holds the model in memory between calls.
+        timeout = getattr(self.config, "llm_timeout", 300)
 
         if self.provider == "ollama":
             base = self.config.dsdl_url or "http://localhost:11434"
@@ -125,9 +128,10 @@ class DsdlClassifier:
                     "prompt": prompt,
                     "stream": False,
                     "format": "json",
-                    "options": {"temperature": 0.0},
+                    "keep_alive": "10m",
+                    "options": {"temperature": 0.0, "num_predict": 200},
                 },
-                timeout=120,
+                timeout=timeout,
             )
             resp.raise_for_status()
             text = resp.json().get("response", "")
@@ -136,7 +140,7 @@ class DsdlClassifier:
             resp = requests.post(
                 f"{base}/predict",
                 json={"prompt": prompt},
-                timeout=120,
+                timeout=timeout,
             )
             resp.raise_for_status()
             payload = resp.json()

@@ -41,8 +41,10 @@ class AgentConfig:
     # provider: None (auto-detect from url) | "ollama" | "dsdl"
     llm_provider: Optional[str] = None
     dsdl_url: str = "http://localhost:11434"      # Ollama default; DSDL uses :5000
-    # Official Foundation-Sec-8B GGUF (Cisco Foundation AI). Override via --llm-model.
-    llm_model: str = "hf.co/fdtn-ai/Foundation-Sec-8B-Q8_0-GGUF"
+    # Foundation-Sec-8B (Cisco Foundation AI). Instruct GGUF fits a 6GB GPU and
+    # follows the JSON classification prompt. Override via --llm-model.
+    llm_model: str = "hf.co/mradermacher/Foundation-Sec-8B-Instruct-GGUF:Q4_K_M"
+    llm_timeout: int = 300        # seconds; first call loads model into VRAM/RAM
 
     # Threat-intel API keys (loaded from env / Splunk secret store, never hardcoded)
     vt_api_key: Optional[str] = None

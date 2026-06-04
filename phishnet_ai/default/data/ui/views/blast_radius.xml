@@ -1,0 +1,98 @@
+<dashboard version="1.1" theme="dark">
+  <label>PhishNet AI — Blast Radius</label>
+  <description>Security + observability fusion: did the phishing payload actually execute? The attack chain in one timeline.</description>
+
+  <init>
+    <set token="alert_tok">PH-0049</set>
+  </init>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="dropdown" token="alert_tok">
+      <label>Flagged Alert</label>
+      <search>
+        <query>| inputlookup phishnet_decisions where recommended_action!="close" | dedup alert_id | sort alert_id | table alert_id</query>
+      </search>
+      <fieldForLabel>alert_id</fieldForLabel>
+      <fieldForValue>alert_id</fieldForValue>
+      <default>PH-0049</default>
+    </input>
+  </fieldset>
+
+  <!-- Verdict banner (payload execution, not agent classification label) -->
+  <row>
+    <panel>
+      <title>Verdict</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions where alert_id="$alert_tok$"
+| eval v=case(payload_executed="true" OR payload_executed="True" OR payload_executed=1, "PAYLOAD EXECUTED", true(), "no execution detected")
+| table v</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="useColors">1</option>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Affected Host</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions where alert_id="$alert_tok$"
+| eval host=if(isnull(affected_host) OR affected_host="", "n/a", affected_host)
+| table host</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xf8be34","0xf8be34"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Recipients Targeted</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions where alert_id="$alert_tok$"
+| eval n=coalesce(recipient_count, 0)
+| table n</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xf8be34","0xf8be34"]</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Attack chain timeline (populated only for the hero alert PH-0049) -->
+  <row>
+    <panel>
+      <title>Attack Chain Timeline</title>
+      <table>
+        <search>
+          <query><![CDATA[
+| inputlookup phishnet_decisions
+| search alert_id="$alert_tok$"
+| eval _raw=if(isnull(blast_timeline_json) OR blast_timeline_json="", "[]", blast_timeline_json)
+| spath input=_raw path={} output=ev
+| mvexpand ev
+| spath input=ev path=time output=time
+| spath input=ev path=event output=event
+| table time, event
+| sort time
+          ]]></query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+
+  <!-- Agent verdict from KV (same source as Command Center review queue) -->
+  <row>
+    <panel>
+      <title>Agent Reasoning</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions where alert_id="$alert_tok$" | table verdict, confidence, reasoning, recommended_action</query>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>

@@ -148,6 +148,7 @@ class SplunkSdkBackend:
             return  # KV Store not ready; non-fatal in dev
 
         d = investigation.as_dict()
+        br = investigation.blast_radius
         record = {
             "_key": d["alert_id"],
             "alert_id": d["alert_id"],
@@ -157,15 +158,22 @@ class SplunkSdkBackend:
             "status": d.get("status"),
             "recommended_action": d.get("recommended_action"),
             "analyst_override": False,
+            "payload_executed": bool(br.payload_executed) if br else False,
+            "affected_host": br.affected_hosts[0] if br and br.affected_hosts else "",
+            "recipient_count": len(investigation.alert.recipients),
+            "blast_timeline_json": json.dumps(br.timeline) if br and br.timeline else "",
         }
         try:
             coll.insert(json.dumps(record))
         except Exception:
-            # Likely already exists -> update by key
             try:
                 coll.update(d["alert_id"], json.dumps(record))
-            except Exception:
-                pass
+            except Exception as exc:
+                import sys
+                print(
+                    f"KV upsert failed for {d['alert_id']}: {exc}",
+                    file=sys.stderr,
+                )
 
 
 # --------------------------------------------------------------------------- #

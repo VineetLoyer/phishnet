@@ -95,7 +95,8 @@ def ingest(host, port, token, index, sourcetype, alerts, scheme="https"):
 
     for alert in alerts:
         payload = {
-            "time": parse_event_time(alert),
+            # No explicit "time" field: let Splunk stamp _time = index time (now).
+            # Sending a float epoch here caused events to be silently dropped.
             "host": "phishnet-demo",
             "source": "phishnet:generator",
             "sourcetype": sourcetype,
@@ -104,7 +105,7 @@ def ingest(host, port, token, index, sourcetype, alerts, scheme="https"):
         }
         try:
             resp = requests.post(url, headers=headers, json=payload,
-                                 verify=False, timeout=15)
+                                 verify=False, timeout=(5, 10))
             if resp.status_code == 200:
                 sent += 1
             else:

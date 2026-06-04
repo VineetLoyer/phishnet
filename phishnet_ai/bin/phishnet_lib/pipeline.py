@@ -56,6 +56,9 @@ def run_once(config: AgentConfig, verbose: bool = True) -> RunSummary:
     classifier = get_classifier(config)
     summary = RunSummary()
 
+    if verbose:
+        print(f"Backend: {backend.name} | Classifier: {config.classifier}")
+
     alerts = backend.get_alerts()
     if verbose and not alerts:
         print("No alerts found. Run scripts/generate_demo_data.py first.")

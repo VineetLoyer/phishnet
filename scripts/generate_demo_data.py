@@ -69,7 +69,7 @@ def make_false_positive(i):
     user, domain = random.choice(LEGIT_SENDERS)
     return {
         "alert_id": f"PH-{i:04d}",
-        "received_at": _ts(random.randint(1, 700)),
+        "received_at": _ts(random.randint(1, 12)),
         "sender": f"{user}@{domain}",
         "sender_domain": domain,
         "subject": random.choice(LEGIT_SUBJECTS),
@@ -92,7 +92,7 @@ def make_ambiguous(i):
     url = f"http://{domain}/verify?id={random.randint(1000,9999)}"
     return {
         "alert_id": f"PH-{i:04d}",
-        "received_at": _ts(random.randint(1, 700)),
+        "received_at": _ts(random.randint(1, 12)),
         "sender": f"{user}@{domain}",
         "sender_domain": domain,
         "subject": random.choice(SUSPICIOUS_SUBJECTS),
@@ -116,7 +116,7 @@ def make_real_attack(i, with_blast=False):
     url = f"http://{domain}/login/sso?redirect={random.randint(1000,9999)}"
     rec = {
         "alert_id": f"PH-{i:04d}",
-        "received_at": _ts(random.randint(1, 300)),
+        "received_at": _ts(random.randint(1, 12)),
         "sender": f"{user}@{domain}",
         "sender_domain": domain,
         "subject": random.choice(MALICIOUS_SUBJECTS),

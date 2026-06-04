@@ -51,3 +51,7 @@ logs/
 
 # --- Private research & strategy docs (NOT for public repo) ---
 docs/
+
+# --- Private agent guardrails (local only) ---
+Claude.md
+CLAUDE.md

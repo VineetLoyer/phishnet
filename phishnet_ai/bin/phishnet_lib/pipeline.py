@@ -11,6 +11,7 @@ from .splunk_io import get_backend
 from .classifier import get_classifier
 from . import investigation as playbook
 from . import report as report_mod
+from . import threat_intel
 
 
 def _decide_action(inv: Investigation, config: AgentConfig) -> None:
@@ -44,6 +45,7 @@ def _decide_action(inv: Investigation, config: AgentConfig) -> None:
 
 def process_alert(alert, config: AgentConfig, classifier) -> Investigation:
     inv = Investigation(alert=alert)
+    threat_intel.attach_intel(alert, config)
     inv.steps = playbook.investigate(alert)
     inv.blast_radius = playbook.build_blast_radius(alert)
     inv.verdict = classifier.classify(alert, inv)

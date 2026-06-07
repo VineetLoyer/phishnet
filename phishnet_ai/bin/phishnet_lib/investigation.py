@@ -13,29 +13,49 @@ from typing import List
 from .models import Alert, InvestigationStep, BlastRadius
 
 
+def _vt_phrase(intel: dict) -> str:
+    """One-line VirusTotal summary for appending to a finding."""
+    if not intel:
+        return ""
+    return (f" VirusTotal: {intel['malicious']}/{intel['total_engines']} engines "
+            f"flagged it malicious.")
+
+
+def _urlscan_phrase(intel: dict) -> str:
+    """One-line urlscan.io summary for appending to a finding."""
+    if not intel:
+        return ""
+    return f" urlscan.io verdict: {intel['verdict']} (score {intel['score']})."
+
+
 def step_sender_reputation(alert: Alert) -> InvestigationStep:
     domain_age_days = alert.raw.get("sender_domain_age_days", 365)
+    vt = (alert.raw.get("threat_intel") or {}).get("domain") or {}
+    vt_phrase = _vt_phrase(vt)
+    vt_data = {"vt_malicious": vt.get("malicious"), "vt_engines": vt.get("total_engines")} if vt else {}
     if domain_age_days < 7:
         return InvestigationStep(
             name="sender_reputation",
-            tool="whois/threat_intel",
+            tool="whois/virustotal",
             finding=f"Sender domain '{alert.sender_domain}' registered "
-                    f"{domain_age_days} day(s) ago — newly created domains are high-risk.",
-            data={"domain_age_days": domain_age_days},
+                    f"{domain_age_days} day(s) ago — newly created domains are high-risk."
+                    + vt_phrase,
+            data={"domain_age_days": domain_age_days, **vt_data},
             signal="malicious" if domain_age_days < 3 else "suspicious",
         )
     return InvestigationStep(
         name="sender_reputation",
-        tool="whois/threat_intel",
+        tool="whois/virustotal",
         finding=f"Sender domain '{alert.sender_domain}' is established "
-                f"({domain_age_days} days old).",
-        data={"domain_age_days": domain_age_days},
+                f"({domain_age_days} days old)." + vt_phrase,
+        data={"domain_age_days": domain_age_days, **vt_data},
         signal="benign",
     )
 
 
 def step_url_analysis(alert: Alert) -> InvestigationStep:
     verdicts = alert.raw.get("url_verdicts", {})
+    url_intel = (alert.raw.get("threat_intel") or {}).get("urls") or {}
     malicious_urls = [u for u, v in verdicts.items() if v == "malicious"]
     suspicious_urls = [u for u, v in verdicts.items() if v == "suspicious"]
     if malicious_urls:
@@ -43,7 +63,8 @@ def step_url_analysis(alert: Alert) -> InvestigationStep:
             name="url_analysis",
             tool="urlscan.io/virustotal",
             finding=f"{len(malicious_urls)} URL(s) flagged malicious, including a "
-                    "credential-harvesting redirect.",
+                    "credential-harvesting redirect."
+                    + _urlscan_phrase(url_intel.get(malicious_urls[0])),
             data={"malicious_urls": malicious_urls},
             signal="malicious",
         )
@@ -52,7 +73,8 @@ def step_url_analysis(alert: Alert) -> InvestigationStep:
             name="url_analysis",
             tool="urlscan.io/virustotal",
             finding=f"{len(suspicious_urls)} URL(s) have suspicious reputation or "
-                    "unusual redirect behavior; not confirmed malicious.",
+                    "unusual redirect behavior; not confirmed malicious."
+                    + _urlscan_phrase(url_intel.get(suspicious_urls[0])),
             data={"suspicious_urls": suspicious_urls},
             signal="suspicious",
         )

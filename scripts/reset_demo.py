@@ -15,6 +15,7 @@ Usage:
     set PHISHNET_SPLUNK_PW=...
     python scripts/reset_demo.py            # clear only
     python scripts/reset_demo.py --repopulate   # clear + re-run agent (mock, auto)
+    python scripts/reset_demo.py --enrich       # backfill KV fields from index=phishing
 """
 
 import argparse
@@ -24,7 +25,9 @@ import sys
 import splunklib.client as client
 
 BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "phishnet_ai", "bin")
+SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.normpath(BIN))
+sys.path.insert(0, SCRIPTS)
 
 
 def connect():
@@ -74,12 +77,25 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--repopulate", action="store_true",
                    help="Re-run the agent over all alerts after clearing.")
+    p.add_argument("--enrich", action="store_true",
+                   help="Backfill KV blast-radius fields from index=phishing (no clear).")
     args = p.parse_args()
 
     service = connect()
+
+    if args.enrich and not args.repopulate:
+        import enrich_kv_from_index as ekv
+        raise SystemExit(ekv.enrich(service))
+
     clear(service)
     if args.repopulate:
         repopulate()
+        print("Warming threat-intel KV cache ...")
+        import seed_threat_intel as sti
+        sti.seed(service)
+        print("Backfilling KV alert fields from index=phishing ...")
+        import enrich_kv_from_index as ekv
+        ekv.enrich(service)
     print("Demo reset done.")
 
 

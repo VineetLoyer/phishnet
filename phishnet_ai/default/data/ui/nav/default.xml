@@ -1,5 +1,6 @@
 <nav search_view="search" color="#5cc05c">
   <view name="command_center" default="true" />
   <view name="blast_radius" />
+  <view name="manager_roi" />
   <view name="search" />
 </nav>

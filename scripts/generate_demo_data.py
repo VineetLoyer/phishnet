@@ -65,11 +65,11 @@ def _ts(minutes_ago):
     return (datetime.utcnow() - timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def make_false_positive(i):
+def make_false_positive(i, shift_minutes=12):
     user, domain = random.choice(LEGIT_SENDERS)
     return {
         "alert_id": f"PH-{i:04d}",
-        "received_at": _ts(random.randint(1, 12)),
+        "received_at": _ts(random.randint(1, shift_minutes)),
         "sender": f"{user}@{domain}",
         "sender_domain": domain,
         "subject": random.choice(LEGIT_SUBJECTS),
@@ -85,14 +85,14 @@ def make_false_positive(i):
     }
 
 
-def make_ambiguous(i):
+def make_ambiguous(i, shift_minutes=12):
     user, domain = random.choice(SUSPICIOUS_SENDERS)
     recips = random.sample(RECIPIENT_POOL, random.randint(3, 12))
     clicked = random.sample(recips, random.randint(0, 1))
     url = f"http://{domain}/verify?id={random.randint(1000,9999)}"
     return {
         "alert_id": f"PH-{i:04d}",
-        "received_at": _ts(random.randint(1, 12)),
+        "received_at": _ts(random.randint(1, shift_minutes)),
         "sender": f"{user}@{domain}",
         "sender_domain": domain,
         "subject": random.choice(SUSPICIOUS_SUBJECTS),
@@ -114,9 +114,12 @@ def make_real_attack(i, with_blast=False):
     clicked = random.sample(recips, random.randint(1, 3))
     creds = random.sample(clicked, 1) if clicked else []
     url = f"http://{domain}/login/sso?redirect={random.randint(1000,9999)}"
+    # Real attacks stay recent so the hero reads as "the live threat" the
+    # analyst is investigating now; the blast one is anchored to its timeline.
+    received_minutes = 48 if with_blast else random.randint(5, 120)
     rec = {
         "alert_id": f"PH-{i:04d}",
-        "received_at": _ts(random.randint(1, 12)),
+        "received_at": _ts(received_minutes),
         "sender": f"{user}@{domain}",
         "sender_domain": domain,
         "subject": random.choice(MALICIOUS_SUBJECTS),
@@ -141,20 +144,45 @@ def make_real_attack(i, with_blast=False):
             {"time": _ts(45), "event": f"{host} CPU spiked to 94% (baseline 12%)"},
             {"time": _ts(44), "event": f"{host} outbound TLS to new external IP 185.220.101.47"},
         ]
+        # Endpoint telemetry for the affected host: CPU% and outbound KB/s,
+        # baseline before the click then a spike after payload execution.
+        rec["endpoint_metrics"] = _endpoint_series(host)
     return rec
 
 
-def generate(count):
+def _endpoint_series(host):
+    """Minute-by-minute CPU% and outbound KB for the affected host.
+
+    Baseline ~12% CPU / ~5 KB until the click (t-46), then a spike to ~94% CPU
+    and a C2 outbound burst — the observability half of the Blast Radius story.
+    """
+    series = []
+    for minutes in range(50, 39, -1):  # t-50 .. t-40
+        if minutes >= 46:             # before click: quiet baseline
+            cpu = random.randint(8, 16)
+            net = random.randint(2, 8)
+        elif minutes >= 44:           # click -> creds -> payload: spike
+            cpu = random.randint(88, 96)
+            net = random.randint(120, 240)
+        else:                          # C2 established: sustained exfil
+            cpu = random.randint(60, 80)
+            net = random.randint(500, 820)
+        series.append({"time": _ts(minutes), "host": host, "cpu_pct": cpu, "net_out_kb": net})
+    return series
+
+
+def generate(count, shift_hours=12):
     records = []
     n_real = max(1, int(count * 0.05))
     n_ambiguous = int(count * 0.15)
     n_fp = count - n_real - n_ambiguous
+    shift_minutes = shift_hours * 60
 
     idx = 1
     for _ in range(n_fp):
-        records.append(make_false_positive(idx)); idx += 1
+        records.append(make_false_positive(idx, shift_minutes)); idx += 1
     for _ in range(n_ambiguous):
-        records.append(make_ambiguous(idx)); idx += 1
+        records.append(make_ambiguous(idx, shift_minutes)); idx += 1
     # Exactly one "hero" attack with a full blast-radius timeline.
     records.append(make_real_attack(idx, with_blast=True)); idx += 1
     for _ in range(n_real - 1):
@@ -169,10 +197,13 @@ def main():
     parser.add_argument("--count", type=int, default=50)
     parser.add_argument("--out", default=os.path.join("data", "generated", "alerts.json"))
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--shift-hours", type=int, default=12,
+                        help="Spread false-positive/ambiguous alerts across this many "
+                             "hours to simulate a full shift (default 12).")
     args = parser.parse_args()
 
     random.seed(args.seed)
-    records = generate(args.count)
+    records = generate(args.count, args.shift_hours)
 
     out_dir = os.path.dirname(args.out)
     if out_dir:
@@ -183,10 +214,13 @@ def main():
     n_real = sum(1 for r in records if r["label_truth"] == "targeted_attack")
     n_phish = sum(1 for r in records if r["label_truth"] == "phishing")
     n_legit = sum(1 for r in records if r["label_truth"] == "legitimate")
+    hero = next((r["alert_id"] for r in records if r["label_truth"] == "targeted_attack"), "n/a")
+    times = sorted(r["received_at"] for r in records)
     print(f"Wrote {len(records)} alerts to {args.out}")
+    print(f"  shift window    : {times[0]} .. {times[-1]} ({args.shift_hours}h)")
     print(f"  legitimate (FP) : {n_legit}")
     print(f"  phishing        : {n_phish}")
-    print(f"  targeted_attack : {n_real}  (with blast-radius timeline)")
+    print(f"  targeted_attack : {n_real}  (hero {hero}, with blast-radius timeline)")
 
 
 if __name__ == "__main__":

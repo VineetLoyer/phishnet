@@ -148,6 +148,36 @@ class SplunkSdkBackend:
             return  # KV Store not ready; non-fatal in dev
 
         d = investigation.as_dict()
+        br = investigation.blast_radius
+        raw = investigation.alert.raw
+        timeline = br.timeline if br else []
+        timeline_text = ""
+        if timeline:
+            timeline_text = " || ".join(
+                "{}\t{}".format(
+                    t.get("time", ""),
+                    str(t.get("event", "")).replace("\t", " "),
+                )
+                for t in timeline
+            )
+        steps_text = " || ".join(
+            "{}\t{}\t{}\t{}".format(
+                s.signal,
+                s.name,
+                s.tool,
+                str(s.finding).replace("\t", " ").replace("||", "/"),
+            )
+            for s in investigation.steps
+        )
+        metrics = raw.get("endpoint_metrics", [])
+        endpoint_metrics_text = " || ".join(
+            "{}\t{}\t{}".format(
+                m.get("time", ""),
+                m.get("cpu_pct", ""),
+                m.get("net_out_kb", ""),
+            )
+            for m in metrics
+        )
         record = {
             "_key": d["alert_id"],
             "alert_id": d["alert_id"],
@@ -157,15 +187,29 @@ class SplunkSdkBackend:
             "status": d.get("status"),
             "recommended_action": d.get("recommended_action"),
             "analyst_override": False,
+            "payload_executed": bool(br.payload_executed) if br else False,
+            "affected_host": br.affected_hosts[0] if br and br.affected_hosts else "",
+            "recipient_count": len(investigation.alert.recipients),
+            "sender": investigation.alert.sender,
+            "subject": investigation.alert.subject,
+            "users_clicked": len(raw.get("clicked_users", [])),
+            "creds_submitted": len(raw.get("cred_submitted_users", [])),
+            "blast_timeline_json": json.dumps(timeline) if timeline else "",
+            "blast_timeline_text": timeline_text,
+            "steps_text": steps_text,
+            "endpoint_metrics_text": endpoint_metrics_text,
         }
         try:
             coll.insert(json.dumps(record))
         except Exception:
-            # Likely already exists -> update by key
             try:
                 coll.update(d["alert_id"], json.dumps(record))
-            except Exception:
-                pass
+            except Exception as exc:
+                import sys
+                print(
+                    f"KV upsert failed for {d['alert_id']}: {exc}",
+                    file=sys.stderr,
+                )
 
 
 # --------------------------------------------------------------------------- #

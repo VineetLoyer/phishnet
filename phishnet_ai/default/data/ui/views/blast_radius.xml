@@ -1,0 +1,163 @@
+<dashboard version="1.1" theme="dark">
+  <label>PhishNet AI — Blast Radius</label>
+  <description>Security + observability fusion: did the phishing payload actually execute? The attack chain in one timeline.</description>
+
+  <init>
+    <set token="alert_tok">PH-0286</set>
+  </init>
+
+  <fieldset submitButton="false" autoRun="true">
+    <input type="dropdown" token="alert_tok" searchWhenChanged="true">
+      <label>Flagged Alert</label>
+      <search>
+        <query>| inputlookup phishnet_decisions | search recommended_action!="close" | dedup alert_id | sort alert_id | table alert_id</query>
+      </search>
+      <fieldForLabel>alert_id</fieldForLabel>
+      <fieldForValue>alert_id</fieldForValue>
+      <default>PH-0286</default>
+    </input>
+  </fieldset>
+
+  <row>
+    <panel>
+      <title>Alert</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | table alert_id</query>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Subject</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | eval subject=if(isnull(subject) OR subject="", "n/a", subject) | table subject</query>
+        </search>
+      </single>
+    </panel>
+    <panel>
+      <title>Sender</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | eval sender=if(isnull(sender) OR sender="", "n/a", sender) | table sender</query>
+        </search>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Classification</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | eval v=upper(verdict) . " · " . case(payload_executed="true" OR payload_executed="True" OR payload_executed=1, "PAYLOAD EXECUTED", true(), "no execution detected") | table v</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="useColors">1</option>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Affected Host</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | eval host=if(isnull(affected_host) OR affected_host="", "n/a", affected_host) | table host</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xf8be34","0xf8be34"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Exposure</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | eval exposure=coalesce(recipient_count, 0) . " recipients · " . coalesce(users_clicked, 0) . " clicked · " . coalesce(creds_submitted, 0) . " creds submitted" | table exposure</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xf8be34","0xf8be34"]</option>
+      </single>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Attack Chain Timeline</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1 | eval blast_timeline_text=if(isnull(blast_timeline_text) OR blast_timeline_text="", "—\tNo payload execution chain recorded for this alert.", blast_timeline_text) | makemv delim=" || " blast_timeline_text | mvexpand blast_timeline_text | rex field=blast_timeline_text "^(?&lt;time&gt;[^\t]+)\t(?&lt;event&gt;.+)$" | table time, event | sort time</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">10</option>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Endpoint Telemetry — $alert_tok$ (CPU % &amp; outbound KB)</title>
+      <chart>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1
+| eval endpoint_metrics_text=if(isnull(endpoint_metrics_text) OR endpoint_metrics_text="", "", endpoint_metrics_text)
+| makemv delim=" || " endpoint_metrics_text
+| mvexpand endpoint_metrics_text
+| rex field=endpoint_metrics_text "^(?&lt;ts&gt;[^\t]+)\t(?&lt;cpu_pct&gt;[^\t]+)\t(?&lt;net_out_kb&gt;.+)$"
+| eval _time=strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+| eval cpu_pct=tonumber(cpu_pct), net_out_kb=tonumber(net_out_kb)
+| sort _time
+| rename cpu_pct AS "CPU %", net_out_kb AS "Outbound KB"
+| table _time, "CPU %", "Outbound KB"</query>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisY.abbreviation">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.fieldColors">{"CPU %":0xdc4e41,"Outbound KB":0xf8be34}</option>
+        <option name="height">260</option>
+      </chart>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Agent Reasoning Chain — how the verdict was reached</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1
+| eval steps_text=if(isnull(steps_text) OR steps_text="", "neutral\tno_data\t-\tNo investigation steps recorded for this alert.", steps_text)
+| makemv delim=" || " steps_text
+| mvexpand steps_text
+| rex field=steps_text "^(?&lt;signal&gt;[^\t]+)\t(?&lt;check&gt;[^\t]+)\t(?&lt;tool&gt;[^\t]+)\t(?&lt;finding&gt;.+)$"
+| streamstats count AS step
+| eval signal=upper(signal)
+| rename step AS "#", signal AS "Signal", check AS "Check", tool AS "Tool / Source", finding AS "Finding"
+| table "#", "Signal", "Check", "Tool / Source", "Finding"</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">10</option>
+        <format type="color" field="Signal">
+          <colorPalette type="map">{"MALICIOUS":#dc4e41,"SUSPICIOUS":#f8be34,"BENIGN":#53a051,"NEUTRAL":#6a6f75}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <row>
+    <panel>
+      <title>Final Verdict</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$alert_tok$" | head 1
+| eval confidence=round(confidence*100, 0) . "%"
+| rename verdict AS "Verdict", confidence AS "Confidence", reasoning AS "Reasoning", recommended_action AS "Recommended Action"
+| table "Verdict", "Confidence", "Recommended Action", "Reasoning"</query>
+        </search>
+        <option name="drilldown">none</option>
+        <format type="color" field="Verdict">
+          <colorPalette type="map">{"targeted_attack":#dc4e41,"phishing":#f8be34,"legitimate":#53a051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</dashboard>

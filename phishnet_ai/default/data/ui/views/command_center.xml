@@ -1,0 +1,287 @@
+<dashboard version="1.1" theme="dark">
+  <label>PhishNet AI — Command Center</label>
+  <description>Autonomous phishing triage overview. The agent investigates every alert; analysts review only what's flagged.</description>
+
+  <!-- Coverage status strip: reassures the analyst the agent is live and covering the whole queue -->
+  <row>
+    <panel>
+      <title>Agent Status</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | stats count AS c | eval status=if(c&gt;0, "MONITORING", "IDLE") | fields status</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">block</option>
+        <option name="useColors">true</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Queue Under Agent Management</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="underLabel">alerts investigated</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x006d9c","0x006d9c"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Autonomous Resolution Rate</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | stats count AS total, count(eval(status="confirmed" AND recommended_action="close")) AS auto | eval rate=if(total&gt;0, round(auto/total*100,0), 0) | fields rate</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">%</option>
+        <option name="underLabel">handled without an analyst</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Headline KPIs: the Maya story in four numbers -->
+  <row>
+    <panel>
+      <title>Alerts Processed</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Auto-Closed (False Positives)</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | where status="confirmed" AND recommended_action="close" | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x006d9c","0x006d9c"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Flagged for Review</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | where recommended_action="review" OR recommended_action="escalate" | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xf8be34","0xf8be34"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Real Threats (Payload Executed)</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | where verdict="targeted_attack" | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Verdict mix + analyst time saved -->
+  <row>
+    <panel>
+      <title>Verdict Breakdown</title>
+      <chart>
+        <search>
+          <query>| inputlookup phishnet_decisions | stats count by verdict | sort - count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Analyst Time Saved (est.)</title>
+      <single>
+        <search>
+          <!-- 25 min saved per auto-closed alert that an analyst would have triaged manually -->
+          <query>| inputlookup phishnet_decisions | where status="confirmed" AND recommended_action="close" | stats count AS fp | eval minutes_saved = fp*25 | eval hours_saved = round(minutes_saved/60,1) | fields hours_saved</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">hours</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- The review queue: what Maya actually works on -->
+  <row>
+    <panel>
+      <title>Review Queue — Flagged Alerts (click a row to investigate)</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions | where recommended_action!="close"
+| eval decision_state=if(analyst_override=="true" OR analyst_override==1, "overridden", if(status=="confirmed", "auto-applied", "awaiting approval"))
+| eval why_flagged=case(creds_submitted&gt;0, "Credentials submitted after click", payload_executed=="true" OR payload_executed==1, "Payload executed on endpoint", verdict=="targeted_attack", "Targeted-attack indicators (new domain + click)", users_clicked&gt;0, "User clicked the malicious link", verdict=="phishing", "Phishing indicators: sender/URL reputation", true(), "Flagged for analyst review")
+| table alert_id, verdict, confidence, why_flagged, recommended_action, decision_state, reasoning
+| sort - confidence</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">20</option>
+        <format type="color" field="verdict">
+          <colorPalette type="map">{"targeted_attack":#dc4e41,"phishing":#f8be34,"legitimate":#53a051}</colorPalette>
+        </format>
+        <format type="color" field="decision_state">
+          <colorPalette type="map">{"awaiting approval":#f8be34,"auto-applied":#53a051,"overridden":#006d9c}</colorPalette>
+        </format>
+        <drilldown>
+          <set token="sel_alert">$row.alert_id$</set>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+
+  <!-- Inline investigation detail: revealed when an analyst clicks a queue row -->
+  <row depends="$sel_alert$">
+    <panel>
+      <title>Investigation — $sel_alert$ · Agent Reasoning Chain</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$sel_alert$" | head 1
+| eval steps_text=if(isnull(steps_text) OR steps_text="", "neutral\tno_data\t-\tNo investigation steps recorded for this alert.", steps_text)
+| makemv delim=" || " steps_text
+| mvexpand steps_text
+| rex field=steps_text "^(?&lt;signal&gt;[^\t]+)\t(?&lt;check&gt;[^\t]+)\t(?&lt;tool&gt;[^\t]+)\t(?&lt;finding&gt;.+)$"
+| streamstats count AS step
+| eval signal=upper(signal)
+| rename step AS "#", signal AS "Signal", check AS "Check", tool AS "Tool / Source", finding AS "Finding"
+| table "#", "Signal", "Check", "Tool / Source", "Finding"</query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="count">10</option>
+        <format type="color" field="Signal">
+          <colorPalette type="map">{"MALICIOUS":#dc4e41,"SUSPICIOUS":#f8be34,"BENIGN":#53a051,"NEUTRAL":#6a6f75}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+
+  <row depends="$sel_alert$">
+    <panel>
+      <title>Verdict &amp; Recommendation</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions | search alert_id="$sel_alert$" | head 1
+| eval confidence=round(confidence*100, 0) . "%"
+| rename verdict AS "Verdict", confidence AS "Confidence", recommended_action AS "Recommended Action", reasoning AS "Reasoning"
+| table "Verdict", "Confidence", "Recommended Action", "Reasoning"</query>
+        </search>
+        <option name="drilldown">none</option>
+        <format type="color" field="Verdict">
+          <colorPalette type="map">{"targeted_attack":#dc4e41,"phishing":#f8be34,"legitimate":#53a051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    <panel>
+      <title>Open Full Blast Radius</title>
+      <html>
+        <div style="padding:18px;">
+          <a class="btn btn-primary" target="_blank"
+             href="/app/phishnet_ai/blast_radius?form.alert_tok=$sel_alert$">
+            Open Blast Radius for $sel_alert$ →
+          </a>
+          <p style="margin-top:12px; color:#a0a0a0;">
+            Security + observability fusion: did the payload execute on the endpoint?
+          </p>
+        </div>
+      </html>
+    </panel>
+  </row>
+
+  <!-- End-of-shift handoff: the one-line story Maya hands to the next analyst / her manager -->
+  <row>
+    <panel>
+      <title>End-of-Shift Handoff</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_decisions
+| stats count AS processed,
+    count(eval(status="confirmed" AND recommended_action="close")) AS auto_closed,
+    count(eval(verdict="targeted_attack")) AS real_threats,
+    count(eval(recommended_action!="close" AND NOT (analyst_override=="true" OR analyst_override==1) AND status!="confirmed")) AS handed_off
+| eval hours_saved=round(auto_closed*25/60,1)
+| rename processed AS "Alerts Processed", auto_closed AS "Auto-Closed (FP)", real_threats AS "Real Threats Caught", hours_saved AS "Analyst Hours Saved", handed_off AS "Awaiting Handoff"
+| table "Alerts Processed", "Auto-Closed (FP)", "Real Threats Caught", "Analyst Hours Saved", "Awaiting Handoff"</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+    <panel>
+      <title>Share with Manager</title>
+      <html>
+        <div style="padding:16px;">
+          <a class="btn btn-primary"
+             href="mailto:marcus@acmecorp.com?subject=PhishNet%20AI%20%E2%80%94%20End-of-Shift%20Summary&amp;body=Shift%20summary%3A%20the%20agent%20auto-triaged%20the%20overnight%20phishing%20queue.%20Real%20threats%20were%20caught%20and%20remediated%3B%20false%20positives%20were%20auto-closed.%20Full%20ROI%20dashboard%3A%20http%3A%2F%2Flocalhost%3A8000%2Fapp%2Fphishnet_ai%2Fmanager_roi">
+            Email shift summary to manager →
+          </a>
+          <a class="btn" style="margin-left:10px;"
+             href="/app/phishnet_ai/manager_roi">
+            Open Manager ROI
+          </a>
+          <p style="margin-top:12px; color:#a0a0a0;">
+            One click hands the night's numbers to Marcus — alerts cleared,
+            threats caught, and analyst hours returned.
+          </p>
+        </div>
+      </html>
+    </panel>
+  </row>
+
+  <!-- Agent activity feed: operational + analyst-decision audit trail -->
+  <row>
+    <panel>
+      <title>Agent Activity &amp; Audit Trail</title>
+      <table>
+        <search>
+          <query>| inputlookup phishnet_audit_log
+| eval _t=strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+| sort - _t
+| eval Time=strftime(_t, "%H:%M:%S")
+| rename action AS "Action", alert_id AS "Alert", analyst AS "Analyst", detail AS "Detail"
+| table "Time", "Action", "Alert", "Analyst", "Detail"</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">15</option>
+        <option name="drilldown">none</option>
+        <format type="color" field="Action">
+          <colorPalette type="map">{"remediate":#dc4e41,"override":#006d9c,"reopen":#f8be34,"approve":#53a051}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+</dashboard>

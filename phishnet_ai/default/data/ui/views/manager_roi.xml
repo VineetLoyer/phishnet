@@ -1,0 +1,218 @@
+<dashboard version="1.1" theme="dark">
+  <label>PhishNet AI — Manager ROI</label>
+  <description>The manager's view: what the autonomous agent delivered — alerts handled, threats caught, analyst hours returned, and accuracy trending up.</description>
+
+  <!-- Current shift (live): reflects the agent's work in real time as it processes the queue -->
+  <row>
+    <panel>
+      <title>This Shift — Alerts Processed (live)</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x006d9c","0x006d9c"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>This Shift — Threats Caught (live)</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | where verdict="targeted_attack" | stats count</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>This Shift — Hours Saved (live)</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_decisions | where status="confirmed" AND recommended_action="close" | stats count AS fp | eval hours=round(fp*25/60,1) | fields hours</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">hrs</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">1</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Headline ROI: cumulative across the program (weekly metrics) -->
+  <row>
+    <panel>
+      <title>Alerts Processed (8 wks)</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_metrics | stats sum(alerts_processed) AS total</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x006d9c","0x006d9c"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Real Threats Caught</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_metrics | stats sum(threats_caught) AS total</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xdc4e41","0xdc4e41"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Analyst Hours Saved</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_metrics | stats sum(minutes_saved) AS m | eval hours=round(m/60,0) | fields hours</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">hrs</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">0</option>
+      </single>
+    </panel>
+    <panel>
+      <title>FTE-Weeks Returned</title>
+      <single>
+        <search>
+          <!-- 1 analyst FTE-week = 40 hours -->
+          <query>| inputlookup phishnet_metrics | stats sum(minutes_saved) AS m | eval fte=round(m/60/40,1) | fields fte</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">FTE-wks</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">1</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Current accuracy + this week's auto-resolution rate -->
+  <row>
+    <panel>
+      <title>Current Classification Accuracy</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_metrics | sort - week_start | head 1 | eval acc=accuracy_pct | fields acc</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">%</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Current Escalation Rate</title>
+      <single>
+        <search>
+          <query>| inputlookup phishnet_metrics | sort - week_start | head 1 | eval esc=escalation_rate | fields esc</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">%</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0xf8be34","0xf8be34"]</option>
+        <option name="numberPrecision">1</option>
+      </single>
+    </panel>
+    <panel>
+      <title>Auto-Resolved This Week</title>
+      <single>
+        <search>
+          <!-- auto-resolved = processed - escalated (escalation_rate %) -->
+          <query>| inputlookup phishnet_metrics | sort - week_start | head 1 | eval auto_pct=round(100-escalation_rate,1) | fields auto_pct</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="unit">%</option>
+        <option name="colorBy">value</option>
+        <option name="rangeColors">["0x53a051","0x53a051"]</option>
+        <option name="numberPrecision">1</option>
+      </single>
+    </panel>
+  </row>
+
+  <!-- Weekly trend: volume handled vs. analyst hours saved -->
+  <row>
+    <panel>
+      <title>Weekly Throughput &amp; Hours Saved</title>
+      <chart>
+        <search>
+          <query>| inputlookup phishnet_metrics
+| sort week_start
+| eval hours_saved=round(minutes_saved/60,0)
+| rename alerts_processed AS "Alerts Processed", hours_saved AS "Hours Saved"
+| table week_start, "Alerts Processed", "Hours Saved"</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Week</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"Alerts Processed":0x006d9c,"Hours Saved":0x53a051}</option>
+        <option name="height">280</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- Weekly trend: accuracy up, escalation down -->
+  <row>
+    <panel>
+      <title>Accuracy &amp; Escalation Trend</title>
+      <chart>
+        <search>
+          <query>| inputlookup phishnet_metrics
+| sort week_start
+| rename accuracy_pct AS "Accuracy %", escalation_rate AS "Escalation %"
+| table week_start, "Accuracy %", "Escalation %"</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleX.text">Week</option>
+        <option name="charting.axisY.maximumNumber">100</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"Accuracy %":0x53a051,"Escalation %":0xf8be34}</option>
+        <option name="height">280</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Threats Caught by Week</title>
+      <chart>
+        <search>
+          <query>| inputlookup phishnet_metrics
+| sort week_start
+| rename threats_caught AS "Threats Caught"
+| table week_start, "Threats Caught"</query>
+          <refresh>60s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.axisTitleX.text">Week</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"Threats Caught":0xdc4e41}</option>
+        <option name="height">280</option>
+      </chart>
+    </panel>
+  </row>
+</dashboard>

@@ -1,6 +1,7 @@
 """Agent configuration."""
 
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -51,6 +52,13 @@ class AgentConfig:
     urlscan_api_key: Optional[str] = None
 
     def __post_init__(self):
+        if not self.splunk_username:
+            self.splunk_username = os.environ.get("PHISHNET_SPLUNK_USER")
+        if not self.splunk_password:
+            self.splunk_password = os.environ.get("PHISHNET_SPLUNK_PW")
+        if not self.splunk_token:
+            self.splunk_token = os.environ.get("PHISHNET_SPLUNK_TOKEN")
+
         if self.mode not in ("recommend", "auto"):
             raise ValueError(f"invalid mode: {self.mode}")
         if self.classifier not in ("mock", "dsdl", "huggingface"):

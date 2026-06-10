@@ -8,6 +8,7 @@ Three backends:
 Week 1 ships `mock`. `dsdl` is wired on Day 4. `huggingface` is the fallback.
 """
 
+import sys
 from typing import Protocol
 from .models import Alert, Investigation, Verdict
 from .config import AgentConfig
@@ -111,6 +112,21 @@ class DsdlClassifier:
         )
 
     def classify(self, alert: Alert, investigation: Investigation) -> Verdict:
+        # The model endpoint can be momentarily unavailable (cold load, GPU
+        # contention, transient socket drop). A single alert must never be left
+        # unclassified mid-batch, so any endpoint failure degrades gracefully to
+        # the deterministic heuristics instead of raising.
+        try:
+            text = self._call_model(alert, investigation)
+        except Exception as exc:  # noqa: BLE001 - intentional catch-all fallback
+            sys.stderr.write(
+                f"[classifier] Foundation-Sec endpoint unavailable "
+                f"({type(exc).__name__}: {exc}); falling back to heuristics.\n"
+            )
+            return MockClassifier().classify(alert, investigation)
+        return self._parse(text, investigation)
+
+    def _call_model(self, alert: Alert, investigation: Investigation) -> str:
         import json
         import requests
 
@@ -134,19 +150,18 @@ class DsdlClassifier:
                 timeout=timeout,
             )
             resp.raise_for_status()
-            text = resp.json().get("response", "")
-        else:  # dsdl
-            base = self.config.dsdl_url or "http://localhost:5000"
-            resp = requests.post(
-                f"{base}/predict",
-                json={"prompt": prompt},
-                timeout=timeout,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            text = payload.get("response") or payload.get("text") or json.dumps(payload)
+            return resp.json().get("response", "")
 
-        return self._parse(text, investigation)
+        # dsdl
+        base = self.config.dsdl_url or "http://localhost:5000"
+        resp = requests.post(
+            f"{base}/predict",
+            json={"prompt": prompt},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        return payload.get("response") or payload.get("text") or json.dumps(payload)
 
     def _parse(self, text: str, investigation: Investigation) -> Verdict:
         import json
@@ -161,6 +176,7 @@ class DsdlClassifier:
             if label not in self.LABELS:
                 label = "phishing"
             confidence = float(data.get("confidence", confidence))
+            confidence = max(0.0, min(1.0, confidence))  # clamp to [0,1]
             reasoning = str(data.get("reasoning", reasoning))
         except (ValueError, AttributeError, TypeError):
             # Model didn't return clean JSON — fall back to keyword heuristics.

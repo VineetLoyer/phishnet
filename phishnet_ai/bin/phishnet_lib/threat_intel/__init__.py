@@ -1,25 +1,30 @@
-"""Threat-intel enrichment for the investigation playbook.
+"""Splunk-native reputation enrichment for the investigation playbook.
 
-Adds external reputation context (VirusTotal, urlscan.io) to an alert's sender
-domain and URLs. The lookup is deliberately demo-safe:
+Instead of phoning a third-party API (VirusTotal/urlscan), PhishNet derives an
+indicator's reputation from Splunk's *own* telemetry — how new the domain is to
+your environment, how many alerts it spans, how many recipients it reached, and
+how often the agent has previously judged it malicious. That works even for
+never-before-seen domains (where an external feed returns "no data") and keeps
+the whole pipeline in-platform.
 
-    1. KV cache  (phishnet_threat_intel)  -> instant, offline, the demo path
-    2. live API  (only if an API key is configured AND the cache missed)
-    3. synthesis (deterministic, derived from the alert's own reputation data)
+Lookup strategy (demo-safe, offline-safe):
 
-Step 3 means every alert gets believable intel even with zero API keys and an
-empty cache, so the dashboards are never blank on stage. Each provider is a
-single, isolated swap point — drop in a real key and the same code path calls
-the live API and caches the response.
+    1. KV cache (phishnet_threat_intel) -> the batch-computed reputation, the
+       authoritative record used in the demo. Seeded by scripts/seed_threat_intel.py
+       from one Splunk search across index=phishing + phishnet_decisions.
+    2. local derivation -> if the cache misses (offline / file backend / an
+       indicator the batch never saw), derive a believable record from the
+       alert's own fields so a finding is never blank.
 
 `attach_intel(alert, config)` mutates `alert.raw["threat_intel"]` and returns it.
 """
 
-import hashlib
 from typing import Any, Dict, Optional
 
 from .cache import IntelCache
-from . import vt, urlscan
+
+# Single logical source now that reputation is computed in-platform.
+SOURCE = "splunk_local"
 
 _cache_singleton: Optional[IntelCache] = None
 
@@ -32,90 +37,64 @@ def _get_cache(config) -> IntelCache:
     return _cache_singleton
 
 
-def _seed(indicator: str) -> int:
-    """Stable pseudo-random seed derived from the indicator string."""
-    return int(hashlib.sha256(indicator.encode("utf-8")).hexdigest(), 16)
+def _risk(age_days: int, prior_malicious: int) -> str:
+    if age_days < 3 or prior_malicious > 0:
+        return "high"
+    if age_days < 90:
+        return "medium"
+    return "low"
 
 
-def _synth_domain(domain: str, age_days: int) -> Dict[str, Any]:
-    """Believable VirusTotal-style domain reputation from local signals."""
-    if age_days < 7:
-        rng = _seed(domain)
-        malicious = 6 + rng % 9          # 6-14 engines
-        suspicious = 2 + (rng >> 4) % 4
-    elif age_days < 90:
-        rng = _seed(domain)
-        malicious = rng % 3              # 0-2 engines
-        suspicious = 1 + (rng >> 4) % 3
-    else:
-        malicious = 0
-        suspicious = 0
-    total = 89
-    harmless = total - malicious - suspicious
+def _local_domain(domain: str, age_days: int) -> Dict[str, Any]:
+    """Reputation derived from the alert's own fields when the cache misses.
+
+    No cross-alert Splunk stats are available here, so first_seen/reach are left
+    unknown and the record is flagged `derived` so the finding phrases honestly.
+    """
     return {
-        "source": "virustotal",
+        "source": SOURCE,
         "indicator": domain,
         "indicator_type": "domain",
-        "malicious": malicious,
-        "suspicious": suspicious,
-        "harmless": harmless,
-        "total_engines": total,
-        "synthesized": True,
+        "first_seen": "",
+        "days_observed": age_days,
+        "alert_count": 1,
+        "recipient_reach": 0,
+        "prior_malicious": 0,
+        "risk": _risk(age_days, 0),
+        "derived": True,
     }
 
 
-def _synth_url(url: str, verdict: str) -> Dict[str, Any]:
-    """Believable urlscan.io-style verdict from the alert's baked URL verdict."""
-    rng = _seed(url)
-    if verdict == "malicious":
-        score = -(60 + rng % 40)         # urlscan score: negative = malicious
-        categories = ["phishing", "credential-harvesting"]
-        v = "malicious"
-    elif verdict == "suspicious":
-        score = -(10 + rng % 30)
-        categories = ["suspicious-redirect"]
-        v = "suspicious"
-    else:
-        score = rng % 10
-        categories = []
-        v = "benign"
+def _local_url(url: str, verdict: str) -> Dict[str, Any]:
+    """URL reputation derived from the alert's baked proxy verdict on cache miss."""
+    v = verdict if verdict in ("malicious", "suspicious", "benign") else "unknown"
     return {
-        "source": "urlscan",
+        "source": SOURCE,
         "indicator": url,
         "indicator_type": "url",
         "verdict": v,
-        "score": score,
-        "categories": categories,
-        "synthesized": True,
+        "seen_count": 1,
+        "prior_malicious": 0,
+        "derived": True,
     }
 
 
-def _lookup_domain(domain: str, age_days: int, config, cache: IntelCache) -> Dict[str, Any]:
-    cached = cache.get(domain, "domain", "virustotal")
+def _lookup_domain(domain: str, age_days: int, cache: IntelCache) -> Dict[str, Any]:
+    cached = cache.get(domain, "domain", SOURCE)
     if cached is not None:
         return cached
-    if config and getattr(config, "vt_api_key", None):
-        live = vt.lookup_domain(domain, config.vt_api_key, getattr(config, "llm_timeout", 30))
-        if live is not None:
-            cache.set(domain, "domain", "virustotal", live)
-            return live
-    return _synth_domain(domain, age_days)
+    return _local_domain(domain, age_days)
 
 
-def _lookup_url(url: str, verdict: str, config, cache: IntelCache) -> Dict[str, Any]:
-    cached = cache.get(url, "url", "urlscan")
+def _lookup_url(url: str, verdict: str, cache: IntelCache) -> Dict[str, Any]:
+    cached = cache.get(url, "url", SOURCE)
     if cached is not None:
         return cached
-    if config and getattr(config, "urlscan_api_key", None):
-        live = urlscan.lookup_url(url, config.urlscan_api_key, getattr(config, "llm_timeout", 30))
-        if live is not None:
-            cache.set(url, "url", "urlscan", live)
-            return live
-    return _synth_url(url, verdict)
+    return _local_url(url, verdict)
 
 
 def attach_intel(alert, config=None) -> Dict[str, Any]:
-    """Enrich an alert with threat intel and stash it on alert.raw['threat_intel'].
+    """Enrich an alert with reputation and stash it on alert.raw['threat_intel'].
 
     Safe to call repeatedly; returns the intel dict
     {"domain": {...}, "urls": {url: {...}}}.
@@ -126,9 +105,9 @@ def attach_intel(alert, config=None) -> Dict[str, Any]:
 
     intel: Dict[str, Any] = {"domain": None, "urls": {}}
     if alert.sender_domain:
-        intel["domain"] = _lookup_domain(alert.sender_domain, age_days, config, cache)
+        intel["domain"] = _lookup_domain(alert.sender_domain, age_days, cache)
     for url in alert.urls:
-        intel["urls"][url] = _lookup_url(url, verdicts.get(url, "unknown"), config, cache)
+        intel["urls"][url] = _lookup_url(url, verdicts.get(url, "unknown"), cache)
 
     alert.raw["threat_intel"] = intel
     return intel

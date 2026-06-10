@@ -28,6 +28,13 @@ class AgentConfig:
     backend: Optional[str] = None
     use_mcp: bool = False
 
+    # Official Splunk MCP Server (Splunkbase app 7931). When enabled, PhishNet runs
+    # its Splunk searches through the server's `splunk_run_query` tool (the SDK is
+    # used to mint the token and as a fallback if the MCP call fails).
+    use_splunk_mcp: bool = False
+    splunk_mcp_url: Optional[str] = None          # default derived: https://host:port/services/mcp
+    splunk_mcp_tool: str = "splunk_run_query"
+
     # Confidence threshold above which a false-positive may auto-close (auto mode only)
     auto_close_confidence: float = 0.90
 
@@ -58,6 +65,13 @@ class AgentConfig:
             self.splunk_password = os.environ.get("PHISHNET_SPLUNK_PW")
         if not self.splunk_token:
             self.splunk_token = os.environ.get("PHISHNET_SPLUNK_TOKEN")
+
+        if not self.use_splunk_mcp:
+            self.use_splunk_mcp = os.environ.get("PHISHNET_USE_SPLUNK_MCP", "").lower() in ("1", "true", "yes")
+        if not self.splunk_mcp_url:
+            self.splunk_mcp_url = os.environ.get("PHISHNET_SPLUNK_MCP_URL")
+        if not self.splunk_mcp_url:
+            self.splunk_mcp_url = f"https://{self.splunk_host}:{self.splunk_port}/services/mcp"
 
         if self.mode not in ("recommend", "auto"):
             raise ValueError(f"invalid mode: {self.mode}")

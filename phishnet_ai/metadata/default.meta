@@ -10,6 +10,13 @@ export = system
 [views]
 export = system
 
+# Manager ROI is restricted to managers (and admins). Analysts inherit only the
+# default read access above, so Splunk hides the Manager tab from their nav and
+# denies direct access to the view.
+[views/manager_roi]
+access = read : [ phishnet_manager, admin ], write : [ admin ]
+export = system
+
 [savedsearches]
 export = system
 

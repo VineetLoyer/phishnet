@@ -15,6 +15,7 @@ Usage:
     set PHISHNET_SPLUNK_PW=...
     python scripts/reset_demo.py            # clear only
     python scripts/reset_demo.py --repopulate   # clear + re-run agent (mock, auto)
+    python scripts/reset_demo.py --repopulate --classifier dsdl  # genuine Foundation-Sec verdicts (slow, cached)
     python scripts/reset_demo.py --enrich       # backfill KV fields from index=phishing
 """
 
@@ -60,12 +61,16 @@ def clear(service):
     print("Clear complete.")
 
 
-def repopulate():
+def repopulate(classifier="mock"):
     from phishnet_lib.config import AgentConfig
     from phishnet_lib.pipeline import run_once
-    print("Repopulating via agent (mock classifier, auto mode) ...")
+    print(f"Repopulating via agent ({classifier} classifier, auto mode) ...")
+    if classifier == "dsdl":
+        print("  Using Foundation-Sec-8B (Ollama); first call loads the model. "
+              "This is the slow step — verdicts are cached to KV so the live "
+              "demo reads instantly.")
     cfg = AgentConfig(
-        backend="sdk", classifier="mock", mode="auto",
+        backend="sdk", classifier=classifier, mode="auto",
         splunk_username=os.environ.get("PHISHNET_SPLUNK_USER", "VineetLoyer"),
         splunk_password=os.environ["PHISHNET_SPLUNK_PW"],
     )
@@ -79,6 +84,9 @@ def main():
                    help="Re-run the agent over all alerts after clearing.")
     p.add_argument("--enrich", action="store_true",
                    help="Backfill KV blast-radius fields from index=phishing (no clear).")
+    p.add_argument("--classifier", default="mock", choices=["mock", "dsdl"],
+                   help="Verdict backend for --repopulate. 'dsdl' = Foundation-Sec-8B "
+                        "via Ollama (slow, genuine AI verdicts cached to KV).")
     args = p.parse_args()
 
     service = connect()
@@ -89,7 +97,12 @@ def main():
 
     clear(service)
     if args.repopulate:
-        repopulate()
+        repopulate(classifier=args.classifier)
+        # The agent run can take a long time (especially --classifier dsdl, which
+        # is ~90 min for 300 alerts). The session token from the connect() above
+        # expires during that window, so reconnect before the post-steps to avoid
+        # an HTTP 401 ("Session is not logged in").
+        service = connect()
         print("Warming threat-intel KV cache ...")
         import seed_threat_intel as sti
         sti.seed(service)

@@ -58,49 +58,54 @@ PhishNet AI is a **Splunk app**. The agent runs as a modular input; dashboards r
 
 ```mermaid
 flowchart TB
-    subgraph Ingest["Data plane"]
-        MG["Mail gateway / alert feed"]
-        IDX["index=phishing"]
-        MET["index=metrics"]
+    subgraph ingest [Data plane]
+        MG[Mail gateway]
+        IDX[index phishing]
+        MET[index metrics]
         MG --> IDX
     end
 
-    subgraph Agent["PhishNet agent"]
-        PL["Investigation playbook"]
-        TI["Splunk-native threat intel"]
-        CL["Classifier<br/>mock · dsdl · huggingface"]
-        BR["Blast radius fusion"]
+    subgraph agent [PhishNet agent]
+        PL[Investigation playbook]
+        TI[Splunk-native threat intel]
+        CL[Classifier]
+        BR[Blast radius fusion]
+        ORCH[Parallel orchestrator]
         PL --> TI --> CL --> BR
+        PL --> ORCH
     end
 
-    subgraph Store["Splunk knowledge objects"]
-        KV1[("phishnet_decisions")]
-        KV2[("phishnet_threat_intel")]
-        KV3[("phishnet_metrics")]
-        KV4[("phishnet_audit_log")]
-        ACT["index=phishnet_actions"]
-        AUD["index=phishnet_audit"]
+    subgraph store [Splunk knowledge objects]
+        KV1[(phishnet_decisions)]
+        KV2[(phishnet_threat_intel)]
+        KV3[(phishnet_metrics)]
+        KV4[(phishnet_audit_log)]
+        ACT[index phishnet_actions]
+        AUD[index phishnet_audit]
     end
 
-    subgraph MCP["Model Context Protocol"]
-        PN_MCP["PhishNet MCP Server<br/>stdio · FastMCP"]
-        SK_MCP["Official Splunk MCP Server<br/>splunk_run_query"]
+    subgraph mcp [Model Context Protocol]
+        PN_MCP[PhishNet MCP Server]
+        SK_MCP[Official Splunk MCP Server]
     end
 
-    subgraph UI["Dashboards"]
-        CC["Command Center"]
-        BRD["Blast Radius"]
-        ROI["Manager ROI"]
+    subgraph ui [Dashboards]
+        CC[Command Center]
+        BRD[Blast Radius]
+        ROI[Manager ROI]
     end
 
     IDX --> PL
     MET --> BR
-    Agent --> KV1 & KV2 & ACT & AUD
-    PL --> ORCH["Parallel orchestrator"]
+    BR --> KV1
+    BR --> KV2
+    BR --> ACT
+    BR --> AUD
     ORCH --> SK_MCP
-    ORCH -. SDK fallback .-> IDX
-    PN_MCP --> Agent
-    KV1 --> CC & BRD
+    ORCH -.-> IDX
+    PN_MCP --> PL
+    KV1 --> CC
+    KV1 --> BRD
     KV3 --> ROI
     KV4 --> CC
 ```

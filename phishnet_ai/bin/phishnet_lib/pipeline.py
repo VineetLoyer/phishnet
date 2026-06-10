@@ -1,8 +1,7 @@
 """End-to-end orchestration: ingest -> investigate -> classify -> report.
 
-This is the heart of the agent. `run_once` processes the current alert batch and
-returns a RunSummary. It is deliberately backend-agnostic: it works with the
-file backend (synthetic data) today and the MCP backend once that is wired.
+`run_once` processes the current alert batch and returns a RunSummary.
+Backend selection (file, SDK, or MCP) is handled by splunk_io.get_backend().
 """
 
 from .config import AgentConfig

@@ -2,13 +2,9 @@
 """
 PhishNet AI - Seed weekly ROI metrics for the Manager dashboard.
 
-Populates the phishnet_metrics KV Store collection with a realistic 8-week
-trend so the Manager ROI dashboard has a believable story: rising alert volume,
-steady threat catches, growing hours saved, improving accuracy, and a falling
-escalation rate as the agent learns the environment.
-
-Numbers are demo-synthetic but internally consistent (hours saved = auto-closed
-false positives x 25 min, the baseline from our discovery interviews).
+Populates the phishnet_metrics KV Store collection with an 8-week trend for
+the Manager ROI dashboard (throughput, threats caught, hours saved, accuracy,
+escalation rate). Hours saved assumes 25 minutes per auto-closed false positive.
 
 Usage (PowerShell):
     $env:PHISHNET_SPLUNK_USER = "VineetLoyer"

@@ -10,11 +10,10 @@ the agent:
   4. Generates an investigation report.
   5. Writes results to the actions index and the phishnet_decisions KV Store.
 
-During Week 1 this runs in --once mode from the CLI for fast iteration.
-Splunk modular-input wiring (Scheme/validation/stream) is completed once the
-core pipeline works end-to-end.
+For local development, use --once to process the current batch and exit.
+Continuous execution is handled by the Splunk modular input scheduler.
 
-Usage (dev, standalone):
+Usage (standalone):
     python phishnet_agent.py --once
     python phishnet_agent.py --once --classifier mock --limit 5
 """
@@ -92,8 +91,8 @@ def main(argv=None):
         print(summary.as_text())
         return 0
 
-    # TODO(week1-day7): wire Splunk ModularInput Scheme/validation/stream loop here.
-    print("Continuous modular-input mode not yet wired. Use --once for dev runs.")
+    # TODO: implement Splunk modular input scheme/validation/stream handler.
+    print("Continuous mode requires the Splunk modular input. Use --once for standalone runs.")
     return 0
 
 

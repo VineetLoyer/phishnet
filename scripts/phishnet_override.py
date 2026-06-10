@@ -3,8 +3,7 @@
 PhishNet AI - Analyst decision / override CLI (human-in-the-loop)
 
 Lets an analyst act on the agent's recommendation and records the decision in
-the audit trail. Every participant in our discovery interviews rejected silent
-auto-remediation, so every action here is explicit and logged.
+the audit trail. All actions are explicit and logged.
 
 Actions:
   approve   - accept the agent's recommendation, mark the decision confirmed

@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 """
-PhishNet AI - Demo reset
+PhishNet AI - environment reset
 
-Returns Splunk to a clean, known-good demo state:
-  1. Clears the phishnet_actions index (investigation reports)
-  2. Clears the phishnet_decisions KV Store collection
-  3. (Optionally) re-runs the agent over all alerts to repopulate
-
-This makes the dashboards deterministic for demos and removes duplicate
-records from repeated agent runs.
+Clears investigation outputs and optionally repopulates from index=phishing:
+  1. Clears index=phishnet_actions
+  2. Clears phishnet_decisions KV Store
+  3. (Optional) re-runs the agent to repopulate decisions
 
 Usage:
     set PHISHNET_SPLUNK_USER=VineetLoyer
@@ -67,8 +64,7 @@ def repopulate(classifier="mock"):
     print(f"Repopulating via agent ({classifier} classifier, auto mode) ...")
     if classifier == "dsdl":
         print("  Using Foundation-Sec-8B (Ollama); first call loads the model. "
-              "This is the slow step — verdicts are cached to KV so the live "
-              "demo reads instantly.")
+              "Verdicts are persisted to KV after classification completes.")
     cfg = AgentConfig(
         backend="sdk", classifier=classifier, mode="auto",
         splunk_username=os.environ.get("PHISHNET_SPLUNK_USER", "VineetLoyer"),
@@ -85,8 +81,7 @@ def main():
     p.add_argument("--enrich", action="store_true",
                    help="Backfill KV blast-radius fields from index=phishing (no clear).")
     p.add_argument("--classifier", default="mock", choices=["mock", "dsdl"],
-                   help="Verdict backend for --repopulate. 'dsdl' = Foundation-Sec-8B "
-                        "via Ollama (slow, genuine AI verdicts cached to KV).")
+                   help="Verdict backend for --repopulate. 'dsdl' uses Foundation-Sec-8B via Ollama.")
     args = p.parse_args()
 
     service = connect()
@@ -109,7 +104,7 @@ def main():
         print("Backfilling KV alert fields from index=phishing ...")
         import enrich_kv_from_index as ekv
         ekv.enrich(service)
-    print("Demo reset done.")
+    print("Reset complete.")
 
 
 if __name__ == "__main__":

@@ -6,14 +6,14 @@ Backends:
   - sdk:    reads alerts via the Splunk Python SDK (splunklib) by searching
             index=phishing, and writes investigation results back to
             index=phishnet_actions plus the phishnet_decisions KV Store.
-  - mcp:    (Day 3) reads/writes via the Splunk MCP Server for the agentic
-            "tool interface" story. Falls back to sdk if unavailable.
+  - mcp:    optional backend; alert I/O delegates to SDK (orchestration uses
+            splunk_mcp_client separately via agent_api)
 
 The interface is intentionally small: get_alerts() and write_result().
 Backend selection:
   - file  : default, no credentials
   - sdk   : when splunk_token OR splunk_username/password provided
-  - mcp   : when use_mcp is set on the config (Day 3)
+  - mcp   : when use_mcp is set on the config
 """
 
 import json
@@ -213,13 +213,13 @@ class SplunkSdkBackend:
 
 
 # --------------------------------------------------------------------------- #
-# MCP backend (Day 3 — agentic tool interface)
+# MCP backend
 # --------------------------------------------------------------------------- #
 class McpBackend:
-    """Reads/writes via the Splunk MCP Server. Wired Week 1 Day 3.
+    """I/O backend that delegates to SplunkSdkBackend.
 
-    Falls back to SplunkSdkBackend for any operation not yet implemented so the
-    pipeline never breaks while MCP is being wired.
+    Alert ingest and persistence use the SDK. Parallel investigation searches
+    may route through the official Splunk MCP Server via agent_api/orchestrator.
     """
 
     name = "mcp"

@@ -11,7 +11,7 @@ phishnet_ai/
 │   ├── inputs.conf         # phishnet_agent modular input
 │   ├── indexes.conf        # phishing / phishnet_actions / phishnet_audit
 │   ├── collections.conf    # KV Store: decisions, threat_intel, metrics
-│   └── data/ui/views/      # Dashboards (Week 2)
+│   └── data/ui/views/      # Dashboards
 ├── bin/
 │   ├── phishnet_agent.py       # Modular input entry point
 │   ├── phishnet_remediate.py   # Alert action: analyst-approved remediation

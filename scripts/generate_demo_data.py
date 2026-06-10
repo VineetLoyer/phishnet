@@ -114,8 +114,8 @@ def make_real_attack(i, with_blast=False):
     clicked = random.sample(recips, random.randint(1, 3))
     creds = random.sample(clicked, 1) if clicked else []
     url = f"http://{domain}/login/sso?redirect={random.randint(1000,9999)}"
-    # Real attacks stay recent so the hero reads as "the live threat" the
-    # analyst is investigating now; the blast one is anchored to its timeline.
+    # Targeted attacks are placed in the recent window; the blast case aligns
+    # with its endpoint timeline anchor.
     received_minutes = 48 if with_blast else random.randint(5, 120)
     rec = {
         "alert_id": f"PH-{i:04d}",
@@ -154,7 +154,7 @@ def _endpoint_series(host):
     """Minute-by-minute CPU% and outbound KB for the affected host.
 
     Baseline ~12% CPU / ~5 KB until the click (t-46), then a spike to ~94% CPU
-    and a C2 outbound burst — the observability half of the Blast Radius story.
+    and elevated outbound traffic after payload execution.
     """
     series = []
     for minutes in range(50, 39, -1):  # t-50 .. t-40
@@ -183,7 +183,7 @@ def generate(count, shift_hours=12):
         records.append(make_false_positive(idx, shift_minutes)); idx += 1
     for _ in range(n_ambiguous):
         records.append(make_ambiguous(idx, shift_minutes)); idx += 1
-    # Exactly one "hero" attack with a full blast-radius timeline.
+    # One targeted attack includes full blast-radius and endpoint telemetry.
     records.append(make_real_attack(idx, with_blast=True)); idx += 1
     for _ in range(n_real - 1):
         records.append(make_real_attack(idx, with_blast=False)); idx += 1
@@ -220,7 +220,7 @@ def main():
     print(f"  shift window    : {times[0]} .. {times[-1]} ({args.shift_hours}h)")
     print(f"  legitimate (FP) : {n_legit}")
     print(f"  phishing        : {n_phish}")
-    print(f"  targeted_attack : {n_real}  (hero {hero}, with blast-radius timeline)")
+    print(f"  targeted_attack : {n_real}  (blast-radius case {hero})")
 
 
 if __name__ == "__main__":

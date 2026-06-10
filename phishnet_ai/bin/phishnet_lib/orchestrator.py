@@ -2,7 +2,7 @@
 
 This is the surface behind the MCP `investigate_alert` tool: a single call fans
 out several *independent* Splunk searches concurrently — each one a distinct
-"tool" across the Splunkverse (the mail-gateway index, the reputation KV, the
+"tool" across Splunk data sources (mail-gateway index, reputation KV, decisions
 decisions KV) — and consolidates them into one timed SOC report.
 
 Because the tools are independent, running them in a thread pool turns a series

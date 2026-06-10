@@ -6,8 +6,8 @@ Triggered when an analyst approves a recommended action from the Command Center
 (e.g. block sender domain, quarantine emails, force credential reset). Splunk
 invokes this script with `--execute` and the alert payload as JSON on stdin.
 
-This is analyst-approved (human-in-the-loop) by design — see the discovery
-interviews: every participant rejected silent auto-remediation.
+This is analyst-approved (human-in-the-loop) by design — all remediation
+actions require explicit approval and are logged to the audit index.
 
 On execution it:
   1. Writes an audit event to index=phishnet_audit (sourcetype=phishnet:audit)

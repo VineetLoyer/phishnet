@@ -1,11 +1,9 @@
 """Classification backends for phishing verdicts.
 
-Three backends:
-  - mock:        deterministic stub for dev/demo (no model needed)
-  - dsdl:        calls the Foundation-Sec-8B DSDL container endpoint
-  - huggingface: loads Foundation-Sec-8B locally (fallback)
-
-Week 1 ships `mock`. `dsdl` is wired on Day 4. `huggingface` is the fallback.
+Backends:
+  - mock:        deterministic heuristics (no model required)
+  - dsdl:        Foundation-Sec-8B via DSDL or Ollama HTTP endpoint
+  - huggingface: local HuggingFace inference (fallback)
 """
 
 import sys
@@ -22,7 +20,7 @@ class Classifier(Protocol):
 class MockClassifier:
     """Deterministic classifier driven by signals in the investigation.
 
-    Heuristics (transparent, demo-friendly):
+    Heuristics:
       - any malicious-signal step  -> phishing / high confidence
       - any suspicious-signal step -> phishing / medium confidence
       - otherwise                  -> legitimate / high confidence

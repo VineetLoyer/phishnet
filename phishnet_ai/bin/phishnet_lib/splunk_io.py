@@ -18,7 +18,7 @@ Backend selection:
 
 import json
 import os
-from typing import List
+from typing import List, Dict, Any
 from .models import Alert, Investigation
 from .config import AgentConfig
 
@@ -54,6 +54,9 @@ class FileBackend:
     def write_result(self, investigation: Investigation) -> None:
         # Dev mode: pipeline prints the rendered report; nothing to persist.
         pass
+
+    def list_decisions(self) -> List[Dict[str, Any]]:
+        return []
 
 
 # --------------------------------------------------------------------------- #
@@ -126,6 +129,28 @@ class SplunkSdkBackend:
         service = self._connect()
         self._write_report_event(service, investigation)
         self._upsert_decision(service, investigation)
+
+    def list_decisions(self) -> List[Dict[str, Any]]:
+        """Return all records from phishnet_decisions KV (paginated)."""
+        service = self._connect()
+        try:
+            coll = service.kvstore["phishnet_decisions"].data
+        except Exception:
+            return []
+
+        out: List[Dict[str, Any]] = []
+        offset = 0
+        page_size = 500
+        while True:
+            page = coll.query(sort="alert_id", limit=page_size, skip=offset)
+            if not page:
+                break
+            for rec in page:
+                out.append(rec if isinstance(rec, dict) else json.loads(rec))
+            if len(page) < page_size:
+                break
+            offset += page_size
+        return out
 
     def _write_report_event(self, service, investigation: Investigation) -> None:
         """Submit the investigation result as an event into the actions index."""
@@ -239,6 +264,9 @@ class McpBackend:
         # Writes (KV decisions, audit events) use the SDK backend; the official
         # Splunk MCP server's search tools are read-only.
         self._fallback.write_result(investigation)
+
+    def list_decisions(self) -> List[Dict[str, Any]]:
+        return self._fallback.list_decisions()
 
 
 # --------------------------------------------------------------------------- #

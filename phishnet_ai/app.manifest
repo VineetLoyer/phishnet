@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "2.0.0",
+  "info": {
+    "title": "PhishNet AI",
+    "id": {
+      "group": null,
+      "name": "phishnet_ai",
+      "version": "1.0.0"
+    },
+    "author": [
+      {
+        "name": "Vineet Kumar Loyer",
+        "email": null,
+        "company": null
+      }
+    ],
+    "releaseDate": null,
+    "description": "Autonomous phishing investigation agent for Splunk. Investigates every alert with Foundation-Sec-8B, Splunk-native reputation, blast-radius fusion, MCP tools, and role-aware dashboards.",
+    "classification": {
+      "intendedAudience": "Security Operations",
+      "categories": ["Security", "Analytics"],
+      "developmentStatus": "Beta"
+    },
+    "commonInformationModels": null,
+    "license": {
+      "name": "Apache License 2.0",
+      "text": "LICENSE",
+      "uri": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "privacyPolicy": {
+      "name": null,
+      "text": null,
+      "uri": null
+    },
+    "releaseNotes": {
+      "name": "README",
+      "text": "README.md",
+      "uri": "https://github.com/VineetLoyer/phishnet"
+    }
+  },
+  "dependencies": null,
+  "tasks": null,
+  "inputGroups": null,
+  "incompatibleApps": null,
+  "platformRequirements": {
+    "splunk": {
+      "Enterprise": ">=9.0"
+    }
+  },
+  "supportedDeployments": [
+    "_standalone",
+    "_distributed",
+    "_search_head_clustering"
+  ],
+  "targetWorkloads": [
+    "_search_heads"
+  ]
+}

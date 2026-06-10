@@ -1,3 +1,5 @@
+<img width="1170" height="156" alt="image" src="https://github.com/user-attachments/assets/8854fcd9-0a36-4987-8add-97ea17d4ddfe" />
+
 <p align="center">
   <img src="assets/screenshots/logo.png" alt="PhishNet AI" width="120" />
 </p>
@@ -44,7 +46,8 @@ Tier-1 analysts receive hundreds of phishing alerts per shift; a thorough invest
 | **Audit trail** | Agent decisions, analyst overrides, and remediation actions persisted to KV and index |
 
 <p align="center">
-  <img src="assets/screenshots/command-center.png" alt="PhishNet AI Command Center" width="900" />
+  <img width="1052" height="1729" alt="PhishNet AI Command Center" width="900" src="https://github.com/user-attachments/assets/5713fec1-bc13-4742-9523-11080f3c1594" />
+
 </p>
 
 ---

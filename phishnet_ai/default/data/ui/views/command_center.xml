@@ -240,23 +240,76 @@
         <option name="drilldown">none</option>
       </table>
     </panel>
+  </row>
+
+  <row>
     <panel>
-      <title>Share with Manager</title>
+      <title>End-of-Shift Handoff Report</title>
+      <table id="phishnet_handoff_report_table">
+        <search>
+          <query>| inputlookup phishnet_decisions
+| stats count AS processed,
+    count(eval(status="confirmed" AND recommended_action="close")) AS auto_closed,
+    count(eval(verdict="targeted_attack")) AS real_threats,
+    count(eval(recommended_action!="close" AND NOT (analyst_override=="true" OR analyst_override==1) AND status!="confirmed")) AS handed_off,
+    count(eval(payload_executed="true" OR payload_executed=1 OR payload_executed=true OR payload_executed="True")) AS payload_executed
+| eval report_timestamp=strftime(now(), "%Y-%m-%d %H:%M:%S UTC"),
+    hours_saved=round(auto_closed*25/60, 1)
+| eval summary_lines=mvappend(
+    "Executive Summary#Report Generated#".report_timestamp,
+    "Executive Summary#Platform#PhishNet AI — Autonomous Phishing Triage",
+    "Executive Summary#Alerts Processed#".processed,
+    "Executive Summary#Auto-Closed (False Positive)#".auto_closed,
+    "Executive Summary#Targeted Attacks Identified#".real_threats,
+    "Executive Summary#Confirmed Payload Execution#".payload_executed,
+    "Executive Summary#Estimated Analyst Hours Saved#".hours_saved,
+    "Executive Summary#Open Cases — Next Shift#".handed_off,
+    "Handoff Notes#Agent Disposition#All queue alerts investigated; full reasoning chain stored in phishnet_decisions.",
+    "Handoff Notes#Required Analyst Actions#Review Priority Review Queue items; confirm, override, or escalate per IR playbook.",
+    "Handoff Notes#Endpoint Impact#Any Payload Executed = Yes requires immediate containment verification."
+  )
+| mvexpand summary_lines
+| eval section=mvindex(split(summary_lines, "#"), 0),
+    metric=mvindex(split(summary_lines, "#"), 1),
+    value=mvindex(split(summary_lines, "#"), 2),
+    alert_id="", verdict="", confidence="", subject="", recommended_action="", payload_executed_flag="", affected_host=""
+| fields report_timestamp section metric value alert_id verdict confidence subject recommended_action payload_executed_flag affected_host
+| append [
+    | inputlookup phishnet_decisions
+    | search verdict="targeted_attack" OR payload_executed="true" OR payload_executed=1 OR payload_executed=true OR payload_executed="True"
+    | sort - confidence
+    | eval report_timestamp=strftime(now(), "%Y-%m-%d %H:%M:%S UTC"),
+        section="Priority Review Queue",
+        metric="Investigation Required",
+        value=alert_id,
+        confidence=round(confidence*100)."%",
+        payload_executed_flag=if(payload_executed="true" OR payload_executed=1 OR payload_executed=true OR payload_executed="True", "Yes", "No")
+    | table report_timestamp section metric value alert_id verdict confidence subject recommended_action payload_executed_flag affected_host
+  ]
+| sort section value alert_id
+| rename report_timestamp AS "Report Timestamp", section AS "Section", metric AS "Field", value AS "Value", alert_id AS "Alert ID", verdict AS "Verdict", confidence AS "Confidence", subject AS "Subject", recommended_action AS "Recommended Action", payload_executed_flag AS "Payload Executed", affected_host AS "Affected Host"</query>
+          <refresh>30s</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">50</option>
+        <option name="drilldown">none</option>
+        <option name="wrap">true</option>
+      </table>
       <html>
-        <div style="padding:16px;">
-          <a class="btn btn-primary"
-             href="mailto:manager@acmecorp.com?subject=PhishNet%20AI%20%E2%80%94%20End-of-Shift%20Summary&amp;body=Shift%20summary%3A%20the%20agent%20auto-triaged%20the%20overnight%20phishing%20queue.%20Real%20threats%20were%20caught%20and%20remediated%3B%20false%20positives%20were%20auto-closed.%20Full%20ROI%20dashboard%3A%20http%3A%2F%2Flocalhost%3A8000%2Fapp%2Fphishnet_ai%2Fmanager_roi">
-            Email shift summary to manager →
-          </a>
-          <a class="btn" style="margin-left:10px;"
-             href="/app/phishnet_ai/manager_roi">
-            Open Manager ROI
-          </a>
-          <p style="margin-top:12px; color:#a0a0a0;">
-            One click shares the shift summary with management — alerts cleared,
-            threats caught, and analyst hours returned.
-          </p>
+        <style>
+          #phishnet_handoff_report_table table td {
+            font-size: 12px;
+            vertical-align: top;
+          }
+          .phishnet-handoff-actions { margin-top: 12px; }
+          .phishnet-handoff-actions .btn { margin-right: 8px; }
+        </style>
+        <div class="phishnet-handoff-actions">
+          <button type="button" class="btn btn-primary" id="phishnet-download-report">Download handoff (.csv)</button>
+          <button type="button" class="btn" id="phishnet-copy-report">Copy to clipboard</button>
+          <span id="phishnet-copy-status" style="margin-left:8px;color:#53a051;"></span>
         </div>
+        <script src="/static/app/phishnet_ai/handoff_report.js"></script>
       </html>
     </panel>
   </row>

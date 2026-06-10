@@ -16,6 +16,7 @@ Tools exposed:
   - triage_queue       : investigate the whole queue, return summary + outcomes
   - investigate_alert  : full investigation + report for one alert
   - get_blast_radius   : security + observability fusion for one alert
+  - get_shift_handoff  : structured end-of-shift summary for analyst handoff
 
 Backend selection mirrors the agent:
   - With Splunk creds in env (PHISHNET_SPLUNK_USER / PHISHNET_SPLUNK_PW) it reads
@@ -135,6 +136,17 @@ def get_blast_radius(alert_id: str) -> dict:
         alert_id: The alert identifier, e.g. 'PH-0050'.
     """
     return agent_api.get_blast_radius(alert_id, _config())
+
+
+@mcp.tool()
+def get_shift_handoff() -> dict:
+    """Return a structured end-of-shift handoff report.
+
+    Summarizes processed alerts, auto-closed false positives, targeted attacks,
+    payload-execution cases, and the open queue — as stats plus plain-text
+    report_text suitable for email or clipboard.
+    """
+    return agent_api.get_shift_handoff(_config())
 
 
 if __name__ == "__main__":

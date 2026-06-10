@@ -167,6 +167,19 @@ def get_blast_radius(alert_id: str,
     }
 
 
+def get_shift_handoff(config: Optional[AgentConfig] = None,
+                      analyst: Optional[str] = None,
+                      base_url: Optional[str] = None) -> Dict[str, Any]:
+    """Build a structured end-of-shift handoff from phishnet_decisions KV."""
+    from . import shift_report
+
+    config = config or _make_config()
+    backend = get_backend(config)
+    list_fn = getattr(backend, "list_decisions", None)
+    decisions = list_fn() if callable(list_fn) else []
+    return shift_report.build_handoff(decisions, analyst=analyst, base_url=base_url)
+
+
 def list_alerts(config: Optional[AgentConfig] = None,
                 limit: int = 0) -> Dict[str, Any]:
     """List alerts currently in the queue (id, sender, subject) without investigating."""

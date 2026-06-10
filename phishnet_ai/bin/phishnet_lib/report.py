@@ -1,7 +1,6 @@
 """Investigation report generation.
 
-Produces a human-readable report from an Investigation. Week 1 ships a plain-text
-renderer; Week 2 adds a Jinja2 HTML template for the dashboard report viewer.
+Plain-text investigation report renderer for MCP responses and CLI output.
 """
 
 from .models import Investigation

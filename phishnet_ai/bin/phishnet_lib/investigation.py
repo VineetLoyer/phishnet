@@ -147,8 +147,8 @@ def step_click_through(alert: Alert) -> InvestigationStep:
 def build_blast_radius(alert: Alert) -> BlastRadius:
     """Fuse the click event with endpoint metrics to determine payload execution.
 
-    Week 1: reads a pre-correlated timeline baked into alert.raw for the demo
-    'real attack'. Week 2: queries index=metrics for live correlation.
+    Reads blast-radius fields from the alert payload (timeline, hosts, execution
+    flag). Endpoint metrics are correlated at ingest time into alert.raw.
     """
     timeline = alert.raw.get("blast_timeline", [])
     executed = alert.raw.get("payload_executed", False)

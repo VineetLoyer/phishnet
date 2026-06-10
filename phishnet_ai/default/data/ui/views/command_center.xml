@@ -2,7 +2,7 @@
   <label>PhishNet AI — Command Center</label>
   <description>Autonomous phishing triage overview. The agent investigates every alert; analysts review only what's flagged.</description>
 
-  <!-- Coverage status strip: reassures the analyst the agent is live and covering the whole queue -->
+  <!-- Agent coverage KPIs -->
   <row>
     <panel>
       <title>Agent Status</title>
@@ -49,7 +49,7 @@
     </panel>
   </row>
 
-  <!-- Headline KPIs: the Maya story in four numbers -->
+  <!-- Shift summary KPIs -->
   <row>
     <panel>
       <title>Alerts Processed</title>
@@ -135,7 +135,7 @@
     </panel>
   </row>
 
-  <!-- The review queue: what Maya actually works on -->
+  <!-- Alerts flagged for analyst review -->
   <row>
     <panel>
       <title>Review Queue — Flagged Alerts (click a row to investigate)</title>
@@ -220,7 +220,7 @@
     </panel>
   </row>
 
-  <!-- End-of-shift handoff: the one-line story Maya hands to the next analyst / her manager -->
+  <!-- End-of-shift summary for handoff -->
   <row>
     <panel>
       <title>End-of-Shift Handoff</title>
@@ -245,7 +245,7 @@
       <html>
         <div style="padding:16px;">
           <a class="btn btn-primary"
-             href="mailto:marcus@acmecorp.com?subject=PhishNet%20AI%20%E2%80%94%20End-of-Shift%20Summary&amp;body=Shift%20summary%3A%20the%20agent%20auto-triaged%20the%20overnight%20phishing%20queue.%20Real%20threats%20were%20caught%20and%20remediated%3B%20false%20positives%20were%20auto-closed.%20Full%20ROI%20dashboard%3A%20http%3A%2F%2Flocalhost%3A8000%2Fapp%2Fphishnet_ai%2Fmanager_roi">
+             href="mailto:manager@acmecorp.com?subject=PhishNet%20AI%20%E2%80%94%20End-of-Shift%20Summary&amp;body=Shift%20summary%3A%20the%20agent%20auto-triaged%20the%20overnight%20phishing%20queue.%20Real%20threats%20were%20caught%20and%20remediated%3B%20false%20positives%20were%20auto-closed.%20Full%20ROI%20dashboard%3A%20http%3A%2F%2Flocalhost%3A8000%2Fapp%2Fphishnet_ai%2Fmanager_roi">
             Email shift summary to manager →
           </a>
           <a class="btn" style="margin-left:10px;"
@@ -253,7 +253,7 @@
             Open Manager ROI
           </a>
           <p style="margin-top:12px; color:#a0a0a0;">
-            One click hands the night's numbers to Marcus — alerts cleared,
+            One click shares the shift summary with management — alerts cleared,
             threats caught, and analyst hours returned.
           </p>
         </div>

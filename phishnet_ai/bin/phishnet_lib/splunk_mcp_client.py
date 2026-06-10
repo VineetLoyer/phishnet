@@ -1,19 +1,15 @@
 """Client for the official Splunk MCP Server (Splunkbase app 7931).
 
-Lets PhishNet run its Splunk searches *through* Splunk's own MCP server instead
-of calling splunklib directly — so PhishNet is a genuine MCP client of the
-Splunkverse. The server runs as persistent REST handlers inside splunkd and
-speaks JSON-RPC over HTTPS on the management port:
+Routes SPL queries through Splunk's MCP server instead of direct splunklib calls.
+The server runs as persistent REST handlers on the management port:
 
     POST https://<host>:<port>/services/mcp      (Authorization: Bearer <token>)
 
-Tokens are minted from the server's own `/services/mcp_token` endpoint (the
-returned token is RSA-encrypted with the server's public key, which the server
-decrypts on each call). We mint via an authenticated splunklib session so the
-caller only needs the Splunk credentials it already has.
+Tokens are minted via `/services/mcp_token` (RSA-encrypted bearer). This client
+mints tokens through an authenticated splunklib session.
 
-The search tool is `splunk_run_query`, which applies a default -24h time window;
-we pass explicit earliest/latest so historical data is found.
+Search tool: `splunk_run_query`. Pass explicit earliest/latest times; the server
+defaults to a 24-hour window when omitted.
 """
 
 import json

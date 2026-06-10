@@ -229,11 +229,15 @@ class McpBackend:
         self._fallback = SplunkSdkBackend(config)
 
     def get_alerts(self) -> List[Alert]:
-        # TODO(day3): call the MCP 'run_splunk_search' tool; map results to Alerts.
+        # Investigation searches route through the official Splunk MCP server via
+        # phishnet_lib.splunk_mcp_client (see agent_api.investigate_alert). Alert
+        # ingest stays on the SDK reader, which already parses the nested event
+        # JSON into Alert objects reliably.
         return self._fallback.get_alerts()
 
     def write_result(self, investigation: Investigation) -> None:
-        # TODO(day3): write via MCP tools where available.
+        # Writes (KV decisions, audit events) use the SDK backend; the official
+        # Splunk MCP server's search tools are read-only.
         self._fallback.write_result(investigation)
 
 

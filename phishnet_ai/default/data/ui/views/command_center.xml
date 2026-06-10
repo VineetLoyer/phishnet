@@ -91,7 +91,7 @@
       </single>
     </panel>
     <panel>
-      <title>Real Threats (Payload Executed)</title>
+      <title>Real Threats (Targeted Attacks)</title>
       <single>
         <search>
           <query>| inputlookup phishnet_decisions | where verdict="targeted_attack" | stats count</query>

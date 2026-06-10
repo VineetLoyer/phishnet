@@ -23,6 +23,12 @@ Backend selection mirrors the agent:
   - Otherwise it falls back to the local synthetic-data file backend, so the
     server is fully demoable offline.
 
+Classifier selection via PHISHNET_CLASSIFIER (default "mock"):
+  - "dsdl"  -> Foundation-Sec-8B via Ollama; an MCP client calling
+              investigate_alert then drives the real security model live (fast
+              for a single alert with the model warm).
+  - "mock"  -> deterministic heuristics; instant, no model required.
+
 Run (stdio transport, for Claude Desktop / IDE clients):
     python phishnet_ai/bin/phishnet_mcp_server.py
 
@@ -34,7 +40,8 @@ Configure in an MCP client (example mcp.json):
           "args": ["C:/Users/vinee/SplunkHacks/phishnet_ai/bin/phishnet_mcp_server.py"],
           "env": {
             "PHISHNET_SPLUNK_USER": "VineetLoyer",
-            "PHISHNET_SPLUNK_PW": "..."
+            "PHISHNET_SPLUNK_PW": "...",
+            "PHISHNET_CLASSIFIER": "dsdl"
           }
         }
       }
@@ -108,7 +115,10 @@ def investigate_alert(alert_id: str) -> dict:
         alert_id: The alert identifier, e.g. 'PH-0050'.
     Returns:
         The structured investigation (verdict, confidence, reasoning, steps,
-        recommended action) plus a human-readable report and blast radius.
+        recommended action) plus a human-readable report and blast radius. When
+        running against live Splunk, also includes an 'orchestration' SOC report:
+        several independent Splunk searches fanned out concurrently across the
+        mail-gateway index and KV collections, with parallel-vs-sequential timing.
     """
     return agent_api.investigate_alert(alert_id, _config())
 

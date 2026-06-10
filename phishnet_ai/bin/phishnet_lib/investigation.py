@@ -1,11 +1,10 @@
 """The multi-step investigation playbook.
 
 Each step takes an Alert and returns an InvestigationStep with a signal
-(benign | suspicious | malicious | neutral). In Week 1 these steps run against
-synthetic data baked into the alert's `raw` payload, so the whole pipeline runs
-offline. In Weeks 2-3 the steps are upgraded to call real sources:
-  - sender/url reputation  -> VirusTotal, urlscan.io (threat_intel module)
-  - recipients / clicks     -> Splunk via MCP (splunk_io module)
+(benign | suspicious | malicious | neutral). Sources are all in-platform:
+  - sender/url reputation  -> Splunk own-data reputation (threat_intel module:
+                              first-seen, volume, recipient reach, prior verdicts)
+  - recipients / clicks     -> Splunk searches (proxy/email logs)
   - endpoint correlation    -> metrics index (Blast Radius)
 """
 
@@ -13,42 +12,58 @@ from typing import List
 from .models import Alert, InvestigationStep, BlastRadius
 
 
-def _vt_phrase(intel: dict) -> str:
-    """One-line VirusTotal summary for appending to a finding."""
-    if not intel:
+def _rep_phrase(rep: dict) -> str:
+    """One-line Splunk-native domain reputation summary for a finding."""
+    if not rep:
         return ""
-    return (f" VirusTotal: {intel['malicious']}/{intel['total_engines']} engines "
-            f"flagged it malicious.")
+    prior = rep.get("prior_malicious", 0)
+    alerts = rep.get("alert_count", 0)
+    reach = rep.get("recipient_reach", 0)
+    if rep.get("derived") or not alerts:
+        # Cache miss: only the alert's own fields are known.
+        return (f" Splunk reputation: {prior} prior confirmed-malicious sighting(s)."
+                if prior else " Splunk reputation: no prior internal sightings.")
+    base = f" Splunk reputation: seen in {alerts} alert(s) reaching {reach} recipient(s)"
+    base += (f"; {prior} judged malicious by the agent." if prior
+             else "; none previously judged malicious.")
+    return base
 
 
-def _urlscan_phrase(intel: dict) -> str:
-    """One-line urlscan.io summary for appending to a finding."""
-    if not intel:
+def _url_rep_phrase(rep: dict) -> str:
+    """One-line Splunk-native URL reputation summary for a finding."""
+    if not rep:
         return ""
-    return f" urlscan.io verdict: {intel['verdict']} (score {intel['score']})."
+    prior = rep.get("prior_malicious", 0)
+    seen = rep.get("seen_count", 0)
+    return (f" Splunk URL intel: verdict {rep.get('verdict', 'unknown')}, "
+            f"seen {seen} time(s) in your telemetry, "
+            f"{prior} prior malicious sighting(s).")
 
 
 def step_sender_reputation(alert: Alert) -> InvestigationStep:
     domain_age_days = alert.raw.get("sender_domain_age_days", 365)
-    vt = (alert.raw.get("threat_intel") or {}).get("domain") or {}
-    vt_phrase = _vt_phrase(vt)
-    vt_data = {"vt_malicious": vt.get("malicious"), "vt_engines": vt.get("total_engines")} if vt else {}
+    rep = (alert.raw.get("threat_intel") or {}).get("domain") or {}
+    rep_phrase = _rep_phrase(rep)
+    rep_data = {
+        "rep_prior_malicious": rep.get("prior_malicious"),
+        "rep_alert_count": rep.get("alert_count"),
+    } if rep else {}
     if domain_age_days < 7:
         return InvestigationStep(
             name="sender_reputation",
-            tool="whois/virustotal",
+            tool="splunk:reputation",
             finding=f"Sender domain '{alert.sender_domain}' registered "
                     f"{domain_age_days} day(s) ago — newly created domains are high-risk."
-                    + vt_phrase,
-            data={"domain_age_days": domain_age_days, **vt_data},
+                    + rep_phrase,
+            data={"domain_age_days": domain_age_days, **rep_data},
             signal="malicious" if domain_age_days < 3 else "suspicious",
         )
     return InvestigationStep(
         name="sender_reputation",
-        tool="whois/virustotal",
+        tool="splunk:reputation",
         finding=f"Sender domain '{alert.sender_domain}' is established "
-                f"({domain_age_days} days old)." + vt_phrase,
-        data={"domain_age_days": domain_age_days, **vt_data},
+                f"({domain_age_days} days old)." + rep_phrase,
+        data={"domain_age_days": domain_age_days, **rep_data},
         signal="benign",
     )
 
@@ -61,33 +76,33 @@ def step_url_analysis(alert: Alert) -> InvestigationStep:
     if malicious_urls:
         return InvestigationStep(
             name="url_analysis",
-            tool="urlscan.io/virustotal",
+            tool="splunk:reputation",
             finding=f"{len(malicious_urls)} URL(s) flagged malicious, including a "
                     "credential-harvesting redirect."
-                    + _urlscan_phrase(url_intel.get(malicious_urls[0])),
+                    + _url_rep_phrase(url_intel.get(malicious_urls[0])),
             data={"malicious_urls": malicious_urls},
             signal="malicious",
         )
     if suspicious_urls:
         return InvestigationStep(
             name="url_analysis",
-            tool="urlscan.io/virustotal",
+            tool="splunk:reputation",
             finding=f"{len(suspicious_urls)} URL(s) have suspicious reputation or "
                     "unusual redirect behavior; not confirmed malicious."
-                    + _urlscan_phrase(url_intel.get(suspicious_urls[0])),
+                    + _url_rep_phrase(url_intel.get(suspicious_urls[0])),
             data={"suspicious_urls": suspicious_urls},
             signal="suspicious",
         )
     if alert.urls:
         return InvestigationStep(
             name="url_analysis",
-            tool="urlscan.io/virustotal",
+            tool="splunk:reputation",
             finding=f"{len(alert.urls)} URL(s) analyzed; no known-malicious reputation.",
             data={"urls": alert.urls},
             signal="benign",
         )
     return InvestigationStep(
-        name="url_analysis", tool="urlscan.io/virustotal",
+        name="url_analysis", tool="splunk:reputation",
         finding="No URLs present in message.", signal="neutral",
     )
 

@@ -101,6 +101,35 @@ def investigate_alert(alert_id: str,
             "timeline": inv.blast_radius.timeline,
             "evidence": inv.blast_radius.evidence,
         }
+
+    # Parallel tool fan-out: when running against live Splunk, aggregate the
+    # independent Splunk searches concurrently into one timed SOC report. This is
+    # the "orchestration" surface — read-only, best-effort, never fatal. When the
+    # official Splunk MCP server is enabled, searches route through it (with a
+    # per-call SDK fallback); otherwise they go straight through the SDK.
+    service = getattr(backend, "_connect", lambda: None)()
+    if service is not None:
+        try:
+            from . import orchestrator
+            sdk_run = orchestrator.sdk_search_fn(service)
+            run, transport = sdk_run, "sdk"
+            if getattr(config, "use_splunk_mcp", False):
+                try:
+                    from . import splunk_mcp_client
+                    mcp = splunk_mcp_client.SplunkMcpClient.from_config(config, service)
+
+                    def run(spl, _mcp=mcp, _sdk=sdk_run):  # noqa: ANN001
+                        try:
+                            return _mcp.run_query(spl)
+                        except Exception:  # noqa: BLE001 - fall back to SDK
+                            return _sdk(spl)
+
+                    transport = "splunk_mcp"
+                except Exception:  # noqa: BLE001 - MCP unavailable -> SDK
+                    run, transport = sdk_run, "sdk"
+            result["orchestration"] = orchestrator.parallel_soc_report(target, run, transport)
+        except Exception as exc:  # noqa: BLE001
+            result["orchestration"] = {"error": str(exc)}
     return result
 
 

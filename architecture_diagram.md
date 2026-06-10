@@ -13,57 +13,41 @@ External AI clients connect via MCP (Model Context Protocol).
 
 ```mermaid
 flowchart LR
-    subgraph External["External clients"]
-        IDE["IDE / Claude Desktop"]
-        ORCH["Custom MCP orchestrator"]
-    end
-
-    subgraph Splunk["Splunk Enterprise"]
-        subgraph App["phishnet_ai app"]
-            MI["phishnet_agent.py<br/>modular input"]
-            AA["phishnet_remediate.py<br/>alert action"]
-            MCP_S["phishnet_mcp_server.py<br/>MCP server · stdio"]
-            LIB["phishnet_lib<br/>pipeline · classifier · orchestrator"]
-            UI["Dashboards<br/>Command Center · Blast Radius · Manager ROI"]
-        end
-
-        subgraph Data["Splunk data layer"]
-            I1[("index=phishing")]
-            I2[("index=metrics")]
-            I3[("index=phishnet_actions")]
-            I4[("index=phishnet_audit")]
-            KV1[("KV: phishnet_decisions")]
-            KV2[("KV: phishnet_threat_intel")]
-            KV3[("KV: phishnet_metrics")]
-            KV4[("KV: phishnet_audit_log")]
-        end
-
-        subgraph OfficialMCP["Splunk MCP Server app #7931"]
-            EP["POST /services/mcp"]
-            TQ["splunk_run_query"]
-        end
-
-        REST["Splunk REST API · splunklib"]
-    end
-
-    subgraph AI["AI layer"]
-        FS["Foundation-Sec-8B<br/>via Ollama / DSDL"]
-    end
+    IDE[IDE or Claude Desktop]
+    ORCH[Custom orchestrator]
+    MI[phishnet_agent modular input]
+    MCP_S[phishnet_mcp_server]
+    LIB[phishnet_lib pipeline]
+    UI[Dashboards]
+    I1[(index phishing)]
+    I2[(index metrics)]
+    I3[(index phishnet_actions)]
+    KV1[(KV phishnet_decisions)]
+    KV2[(KV phishnet_threat_intel)]
+    REST[Splunk REST API]
+    EP[Splunk MCP endpoint]
+    TQ[splunk_run_query]
+    FS[Foundation-Sec-8B via Ollama]
 
     IDE --> MCP_S
     ORCH --> MCP_S
     MCP_S --> LIB
     MI --> LIB
     LIB --> REST
-    REST --> I1 & I2 & I3 & I4 & KV1 & KV2
+    REST --> I1
+    REST --> I2
+    REST --> I3
+    REST --> KV1
+    REST --> KV2
     LIB --> FS
     LIB --> EP
     EP --> TQ
-    TQ --> I1 & KV1 & KV2
-    LIB -. SDK fallback .-> REST
-    LIB --> KV1 & KV2 & I3
-    AA --> I4 & KV1 & KV4
-    KV1 & KV3 & KV4 --> UI
+    TQ --> I1
+    TQ --> KV1
+    LIB --> KV1
+    LIB --> KV2
+    LIB --> I3
+    KV1 --> UI
 ```
 
 ---
@@ -167,8 +151,8 @@ Any MCP-compatible client can drive the same pipeline that runs inside Splunk.
 
 ```mermaid
 sequenceDiagram
-    participant Mail as Mail gateway / synthetic feed
-    participant Idx as index=phishing
+    participant Mail as Mail gateway
+    participant Idx as index phishing
     participant Agent as phishnet_agent
     participant Play as Investigation playbook
     participant Intel as threat_intel module
@@ -178,21 +162,21 @@ sequenceDiagram
     participant Analyst as SOC analyst
     participant MCP as MCP client
 
-    Mail->>Idx: Ingest phishing alerts (HEC / SDK)
-    Agent->>Idx: Poll new alerts (splunklib)
+    Mail->>Idx: Ingest phishing alerts
+    Agent->>Idx: Poll new alerts
     Agent->>Play: Run playbook per alert
-    Play->>Intel: Domain / URL reputation lookup
-    Intel->>KV: Read/write phishnet_threat_intel
-    Intel->>Idx: Cross-alert SPL aggregation
+    Play->>Intel: Domain and URL reputation
+    Intel->>KV: Read and write threat intel
+    Intel->>Idx: Cross-alert aggregation
     Play->>Model: Classify with playbook context
-    Model-->>Play: Verdict + reasoning
-    Agent->>KV: Upsert decision + steps_text
-    Agent->>Idx: Write index=phishnet_actions report
-    KV->>UI: inputlookup panels render
-    Analyst->>UI: Review queue · drilldown · remediate
-    Analyst->>KV: Override / status update
-    MCP->>Agent: investigate_alert(PH-0286)
-    Agent-->>MCP: Verdict + orchestration timing
+    Model-->>Play: Verdict and reasoning
+    Agent->>KV: Upsert decision
+    Agent->>Idx: Write investigation report
+    KV->>UI: Dashboard panels render
+    Analyst->>UI: Review queue and remediate
+    Analyst->>KV: Override or confirm
+    MCP->>Agent: investigate_alert
+    Agent-->>MCP: Verdict and orchestration timing
 ```
 
 ---
